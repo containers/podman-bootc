@@ -66,6 +66,10 @@ func newRunningVM(vm *VmConfig, runCfg RunVmConfig) error {
 		return err
 	}
 
+	if err := os.MkdirAll(vm.RunDir(), os.ModePerm); err != nil {
+		return err
+	}
+
 	err = os.WriteFile(vm.RunConfigFile(), vmConfig, 0660)
 	if err != nil {
 		return err
