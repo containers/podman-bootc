@@ -4,7 +4,7 @@ set -euo pipefail
 CONFIGDIR="${HOME}/.config/osc/"
 CACHEDIR="${HOME}/.cache/osc/netinst"
 
-declare -a required_cmds=('curl' 'osirrox' 'qemu-img' 'qemu-system-x86_64')
+declare -a required_cmds=('curl' 'osirrox' 'qemu-img' 'qemu-system-x86_64' '/usr/libexex/virtiofsd')
 for cmd in "${required_cmds[@]}"; do
 	if ! command -v "${cmd}" &> /dev/null; then
 		echo "'${cmd}' not found"

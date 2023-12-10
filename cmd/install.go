@@ -30,12 +30,14 @@ type VmInstallConfig struct {
 	Vcpu           uint64
 	Mem            uint64
 	DiskSize       uint64
+	vfsdSocket     string
 }
 
 const (
 	defaultVCPUs    = 2
 	defaultMem      = 2048
 	defaultDiskSize = 10
+	imageMountPoint = "/mnt/cimages"
 )
 
 // installCmd represents the hello command
@@ -82,7 +84,6 @@ func installOSC(_ *cobra.Command, args []string) error {
 		basePath := path.Base(imageUrl.Path)
 		vmInstOpt.Name = strings.ReplaceAll(basePath, ":", "-")
 	}
-
 	exist, err := isCreated(vmInstOpt.Name)
 	if err != nil {
 		return err
@@ -90,6 +91,30 @@ func installOSC(_ *cobra.Command, args []string) error {
 
 	if exist {
 		return fmt.Errorf("VM '%s' already exist", vm.Name)
+	}
+
+	isPodImg, err := isPodmanImage(imageUrl.Path)
+	if err != nil {
+		return err
+	}
+
+	if isPodImg {
+		probeVm := NewVMPartial(vmInstOpt.Name)
+		imgDir := filepath.Join(probeVm.RunDir(), "image", imageUrl.Path)
+		_ = os.MkdirAll(imgDir, os.ModePerm)
+
+		if err := podmanSave(imageUrl.Path, imgDir); err != nil {
+			return err
+		}
+
+		// virtiofsd mount point (in the guest)
+		vmInstOpt.ContainerImage = filepath.Join(imageMountPoint, imageUrl.Path) + " --transport oci"
+
+		socket := filepath.Join(probeVm.RunDir(), "vfsd.sock")
+		if err := startVirtiofsd(filepath.Dir(imgDir), socket); err != nil {
+			return err
+		}
+		vmInstOpt.vfsdSocket = socket
 	}
 
 	err = doInstall(vmInstOpt)
@@ -140,7 +165,7 @@ func doInstall(vmInstOpt VmInstallConfig) error {
 	}
 
 	ksUrl := fmt.Sprintf("http://10.0.2.2:%d", ksServerPort)
-	if err := installVM(ksUrl, vm); err != nil {
+	if err := installVM(ksUrl, vm, vmInstOpt.vfsdSocket); err != nil {
 		return err
 	}
 
@@ -174,23 +199,35 @@ func createDiskImage(path string, size uint64) error {
 	return err
 }
 
-func installVM(ksUrl string, vm VmConfig) error {
+func installVM(ksUrl string, vm VmConfig, vfsdSocket string) error {
 	var args []string
-	args = append(args, "-accel", "kvm", "-cpu", "host", "-nic", "user,model=virtio-net-pci")
+	mem := strconv.FormatUint(vm.Mem, 10)
+	args = append(args, "-object", fmt.Sprintf("memory-backend-file,id=mem,size=%sM,mem-path=/dev/shm,share=on", mem))
+	args = append(args, "-machine", "memory-backend=mem,accel=kvm")
+	args = append(args, "-cpu", "host", "-nic", "user,model=virtio-net-pci")
+	memSizeCmd := fmt.Sprintf("%sM", mem)
+	args = append(args, "-m", memSizeCmd)
+	args = append(args, "-smp", strconv.FormatUint(vm.Vcpu, 10))
+
 	args = append(args, "-cdrom", IsoImage)
 	args = append(args, "-kernel", Kernel)
 	args = append(args, "-initrd", Initrd)
 	args = append(args, "-pidfile", vm.InstallPidFile())
 
-	memSizeCmd := fmt.Sprintf("%sM", strconv.FormatUint(vm.Mem, 10))
-	args = append(args, "-m", memSizeCmd)
-	args = append(args, "-smp", strconv.FormatUint(vm.Vcpu, 10))
 	driveCmd := fmt.Sprintf("if=virtio,file=%s", vm.DiskImage)
 	args = append(args, "-drive", driveCmd)
-	appendCmd := fmt.Sprintf("\"inst.ks=%s\"", ksUrl)
+	appendCmd := fmt.Sprintf("\"inst.ks=%s inst.sshd\"", ksUrl)
+
+	if vfsdSocket != "" {
+		args = append(args, "-chardev", fmt.Sprintf("socket,id=vfsdsock,path=%s", vfsdSocket))
+		args = append(args, "-device", "vhost-user-fs-pci,id=vfsd_dev,queue-size=1024,chardev=vfsdsock,tag=host")
+		appendCmd = fmt.Sprintf("\"inst.ks=%s inst.sshd systemd.mount-extra=host:%s:virtiofs\"", ksUrl, imageMountPoint)
+	}
 	args = append(args, "-append", appendCmd)
 
 	cmd := exec.Command("qemu-system-x86_64", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	return err
 }
@@ -325,4 +362,53 @@ func generatekeys(writeLocation string) error {
 	}
 
 	return fmt.Errorf("failed to generate keys: %s: %w", string(errMsg), waitErr)
+}
+
+func isPodmanImage(image string) (bool, error) {
+	var args []string
+	args = append(args, "images", "--format", "json")
+	out, err := exec.Command("podman", args...).Output()
+	if err != nil {
+		return false, err
+	}
+
+	var tmp []interface{}
+	if err := json.Unmarshal(out, &tmp); err != nil {
+		return false, err
+	}
+	if len(tmp) == 0 {
+		return false, nil
+	}
+
+	for _, obj := range tmp {
+		o := obj.(map[string]interface{})
+		id := o["Id"].(string)
+		short := id[:12]
+
+		if image == id || image == short {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func podmanSave(id string, output string) error {
+	var args []string
+	args = append(args, "save", "--format", "oci-dir", "-o", output, id)
+	cmd := exec.Command("podman", args...)
+	err := cmd.Run()
+	return err
+}
+
+func startVirtiofsd(sharedDir, socketPath string) error {
+	var args []string
+	args = append(args, "--cache", "always", "--sandbox", "none")
+	args = append(args, "--socket-path", socketPath, "--shared-dir", sharedDir)
+
+	cmd := exec.Command("/usr/libexec/virtiofsd", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Start()
 }
