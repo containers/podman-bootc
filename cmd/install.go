@@ -201,6 +201,7 @@ func createDiskImage(path string, size uint64) error {
 
 func installVM(ksUrl string, vm VmConfig, vfsdSocket string) error {
 	var args []string
+	args = append(args, "-nographic")
 	mem := strconv.FormatUint(vm.Mem, 10)
 	args = append(args, "-object", fmt.Sprintf("memory-backend-file,id=mem,size=%sM,mem-path=/dev/shm,share=on", mem))
 	args = append(args, "-machine", "memory-backend=mem,accel=kvm")
@@ -221,7 +222,7 @@ func installVM(ksUrl string, vm VmConfig, vfsdSocket string) error {
 	if vfsdSocket != "" {
 		args = append(args, "-chardev", fmt.Sprintf("socket,id=vfsdsock,path=%s", vfsdSocket))
 		args = append(args, "-device", "vhost-user-fs-pci,id=vfsd_dev,queue-size=1024,chardev=vfsdsock,tag=host")
-		appendCmd = fmt.Sprintf("inst.ks=%s systemd.mount-extra=host:%s:virtiofs", ksUrl, imageMountPoint)
+		appendCmd = fmt.Sprintf("console=ttyS0 inst.ks=%s systemd.mount-extra=host:%s:virtiofs", ksUrl, imageMountPoint)
 	}
 	args = append(args, "-append", appendCmd)
 
@@ -397,6 +398,8 @@ func podmanSave(id string, output string) error {
 	var args []string
 	args = append(args, "save", "--format", "oci-dir", "-o", output, id)
 	cmd := exec.Command("podman", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	return err
 }
