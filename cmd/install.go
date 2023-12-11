@@ -48,7 +48,7 @@ var (
 		Long:    `install an OS container`,
 		Args:    cobra.ExactArgs(1),
 		Example: `osc install --name fedora-base quay.io/centos-bootc/fedora-bootc:eln`,
-		RunE:    installOSC,
+		Run:     installOSC,
 	}
 
 	keepOnErr = false
@@ -73,7 +73,14 @@ func init() {
 	// --disk-image		Path to disk image (such as osbuild/virt-install output)
 }
 
-func installOSC(_ *cobra.Command, args []string) error {
+func installOSC(_ *cobra.Command, args []string) {
+	err := doInstallOSC(args)
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
+}
+
+func doInstallOSC(args []string) error {
 	imageUrl, err := url.Parse(args[0])
 	if err != nil {
 		return err

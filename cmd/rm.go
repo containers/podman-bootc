@@ -13,15 +13,18 @@ var rmCmd = &cobra.Command{
 	Long:    "Remove installed OS Containers",
 	Args:    cobra.ExactArgs(1),
 	Example: `osc rm fedora-base`,
-	RunE:    removeVmCmd,
+	Run:     removeVmCmd,
 }
 
 func init() {
 	RootCmd.AddCommand(rmCmd)
 }
 
-func removeVmCmd(_ *cobra.Command, args []string) error {
-	return Remove(args[0])
+func removeVmCmd(_ *cobra.Command, args []string) {
+	err := Remove(args[0])
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
 }
 
 func Remove(name string) error {

@@ -17,15 +17,18 @@ var startCmd = &cobra.Command{
 	Long:    "Start an existing OS Container machine",
 	Args:    cobra.ExactArgs(1),
 	Example: `osc start fedora-base`,
-	RunE:    startVm,
+	Run:     startVm,
 }
 
 func init() {
 	RootCmd.AddCommand(startCmd)
 }
 
-func startVm(_ *cobra.Command, args []string) error {
-	return doStartVm(args[0])
+func startVm(_ *cobra.Command, args []string) {
+	err := doStartVm(args[0])
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
 }
 
 func doStartVm(name string) error {

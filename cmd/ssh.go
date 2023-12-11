@@ -15,14 +15,21 @@ var sshCmd = &cobra.Command{
 	Long:    "SSH into an existing OS Container machine",
 	Args:    cobra.MinimumNArgs(1),
 	Example: `osc ssh fedora-base`,
-	RunE:    ssh,
+	Run:     ssh,
 }
 
 func init() {
 	RootCmd.AddCommand(sshCmd)
 }
 
-func ssh(_ *cobra.Command, args []string) error {
+func ssh(_ *cobra.Command, args []string) {
+	err := doSsh(args)
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
+}
+
+func doSsh(args []string) error {
 	name := args[0]
 	runCfg, err := LoadRunningVmFromDisk(name)
 	if err != nil {
