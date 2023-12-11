@@ -1,8 +1,25 @@
 # Os container experiment
+Requirements:
+- qemu-img
+- qemu-system-x86_64
+- virtiofsd
+- curl
+- xorriso/osirrox
+- golang
+
+To compile it just run in the project directory
+```shell
+$ go build osc
+```
+and call
+```shell
+$ ./prepare.sh
+```
+it will download a fedora network install iso and extract the kernel and initrd in `${HOME}/.cache/osc/netinst`
 
 To simulate that this is part of podman:
 ```shell
-alias podman='/path-to/osc/alias.sh'
+$ alias podman='/path-to/osc/alias.sh'
 ```
 
 ```shell
