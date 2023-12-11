@@ -221,7 +221,7 @@ func installVM(ksUrl string, vm VmConfig, vfsdSocket string) error {
 	if vfsdSocket != "" {
 		args = append(args, "-chardev", fmt.Sprintf("socket,id=vfsdsock,path=%s", vfsdSocket))
 		args = append(args, "-device", "vhost-user-fs-pci,id=vfsd_dev,queue-size=1024,chardev=vfsdsock,tag=host")
-		appendCmd = fmt.Sprintf("\"inst.ks=%s inst.sshd systemd.mount-extra=host:%s:virtiofs\"", ksUrl, imageMountPoint)
+		appendCmd = fmt.Sprintf("inst.ks=%s systemd.mount-extra=host:%s:virtiofs", ksUrl, imageMountPoint)
 	}
 	args = append(args, "-append", appendCmd)
 
