@@ -224,7 +224,7 @@ func installVM(ksUrl string, vm VmConfig, vfsdSocket string) error {
 
 	driveCmd := fmt.Sprintf("if=virtio,file=%s", vm.DiskImage)
 	args = append(args, "-drive", driveCmd)
-	appendCmd := fmt.Sprintf("\"inst.ks=%s inst.sshd\"", ksUrl)
+	appendCmd := fmt.Sprintf("console=ttyS0 inst.ks=%s", ksUrl)
 
 	if vfsdSocket != "" {
 		args = append(args, "-chardev", fmt.Sprintf("socket,id=vfsdsock,path=%s", vfsdSocket))
