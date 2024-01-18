@@ -1,27 +1,48 @@
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail
 
 CONFIGDIR="${HOME}/.config/osc/"
-CACHEDIR="${HOME}/.cache/osc/netinst"
+CACHEDIR="${HOME}/.cache/osc/"
+MACHINEDIR=${CACHEDIR}/machine
+RUNDIR="/run/user/$(id -u)/osc"
 
-declare -a required_cmds=('curl' 'osirrox' 'qemu-img' 'qemu-system-x86_64' '/usr/libexex/virtiofsd')
+declare -a required_cmds=('jq' 'podman' 'qemu-system-x86_64' '/usr/libexec/virtiofsd')
 for cmd in "${required_cmds[@]}"; do
-	if ! command -v "${cmd}" &> /dev/null; then
-		echo "'${cmd}' not found"
-		exit 1
-	fi
+       if ! command -v "${cmd}" &> /dev/null; then
+               echo "'${cmd}' not found"
+               exit 1
+       fi
 done
 
-echo "Creating config dir: ""${CONFIGDIR}"
-mkdir -p "${CONFIGDIR}"
+echo "Creating default podman machine"
+podman machine init 2> /dev/null
 
-echo "This will install a copy of the fedora netinstall iso in ${CACHEDIR}"
-mkdir -p "${CACHEDIR}"
+echo "Copying machine image to: ${MACHINEDIR}"
+mkdir -p "${MACHINEDIR}"
+podman machine start
+podman machine stop
 
-echo "Downloading iso image"
-ISOURL="https://download.fedoraproject.org/pub/fedora/linux/releases/39/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-39-1.5.iso"
-curl -# -L "${ISOURL}" --output "${CACHEDIR}"/fedora-netinst.iso
+MACHINEDEF="${HOME}/.config/containers/podman/machine/qemu/podman-machine-default.json"
+MACHINEIMG=$(jq -r '.ImagePath' "${MACHINEDEF}")
 
-echo "Extracting kernel & initrd"
-cd "${CACHEDIR}"
-osirrox -indev fedora-netinst.iso -extract /images/pxeboot .
+cp ${MACHINEIMG} "${MACHINEDIR}"/image.qcow2
+
+
+# Let's simulate podman machine with virtiofs sharing the osc cache dir
+# (I need to use this because my podman installation is too old)
+mkdir -p "${RUNDIR}"
+
+VFSDSOCK="${RUNDIR}/machine.sock"
+/usr/libexec/virtiofsd --socket-path="${VFSDSOCK}" --shared-dir="${CACHEDIR}" --cache=never --sandbox=none --syslog &
+
+sleep 2
+
+qemu-system-x86_64 \
+  -machine memory-backend=mem,accel=kvm -cpu host -smp 2 \
+  -m 2G -object memory-backend-file,id=mem,size=2G,mem-path=/dev/shm,share=on \
+  -pidfile "${RUNDIR}/machine.pid" \
+  -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
+  -drive if=virtio,file="${MACHINEDIR}"/image.qcow2 \
+  -chardev socket,id=vfsdsock,path="${VFSDSOCK}" \
+	-device vhost-user-fs-pci,id=vfsd_dev,queue-size=1024,chardev=vfsdsock,tag=osc-cache \
+	-vnc :10 &

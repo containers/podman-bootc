@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -26,10 +27,18 @@ var (
 	IsoImage  = filepath.Join(User.HomeDir, netInstDir, "fedora-netinst.iso")
 	Kernel    = filepath.Join(User.HomeDir, netInstDir, "vmlinuz")
 	Initrd    = filepath.Join(User.HomeDir, netInstDir, "initrd.img")
+
+	CacheDir        = filepath.Join(User.HomeDir, cacheDir)
+	MachineImage    = filepath.Join(CacheDir, "machine/image.qcow2")
+	MachineIdentity = filepath.Join(User.HomeDir, ".ssh", "podman-machine-default")
+	DefaultIdentity = filepath.Join(User.HomeDir, ".ssh", "id_rsa")
 )
 
 func InitOSCDirs() error {
 	if err := os.MkdirAll(ConfigDir, os.ModePerm); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(CacheDir, os.ModePerm); err != nil {
 		return err
 	}
 
@@ -227,4 +236,16 @@ func isPidAlive(pid int) bool {
 
 	err = process.Signal(syscall.Signal(0))
 	return err == nil
+}
+
+func fileExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	exists := false
+
+	if err == nil {
+		exists = true
+	} else if errors.Is(err, os.ErrNotExist) {
+		err = nil
+	}
+	return exists, err
 }
