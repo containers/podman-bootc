@@ -56,6 +56,10 @@ const (
 	installPidFile = "install.pid"
 	configFile     = "vm.json"
 	diskImage      = "disk.qcow2"
+
+	bootcDiskImage  = "disk.img"
+	bootcOciArchive = "image-archive.tar"
+	bootcOciDir     = "image-dir"
 )
 
 // VM Status

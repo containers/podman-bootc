@@ -54,7 +54,15 @@ func boot(_ *cobra.Command, args []string) {
 	elapsed := time.Since(start)
 	fmt.Println("getImage elapsed: ", elapsed)
 
+	// Create VM cache dir
+	vmDir := filepath.Join(CacheDir, id)
+	if err := os.MkdirAll(vmDir, os.ModePerm); err != nil {
+		fmt.Println("Error MkdirAll: ", err)
+		return
+	}
+
 	// load the bootc image into the podman default machine
+	// (only required on linux)
 	start = time.Now()
 	err = loadImageToDefaultMachine(id, name)
 	if err != nil {
@@ -119,12 +127,12 @@ func waitForVM(id string, port int) error {
 	}
 	defer watcher.Close()
 
-	err = watcher.Add(CacheDir)
+	err = watcher.Add(filepath.Join(CacheDir, id))
 	if err != nil {
 		return err
 	}
 
-	vmPidFile := filepath.Join(CacheDir, id+".pid")
+	vmPidFile := filepath.Join(CacheDir, id, runPidFile)
 	for {
 		exists, err := fileExists(vmPidFile)
 		if err != nil {
@@ -168,7 +176,7 @@ func portIsOpen(port int) (bool, error) {
 }
 
 func killVM(id string) error {
-	vmPidFile := filepath.Join(CacheDir, id+".pid")
+	vmPidFile := filepath.Join(CacheDir, id, runPidFile)
 	pid, err := readPidFile(vmPidFile)
 	if err != nil {
 		return err
@@ -191,11 +199,11 @@ func runBootcVM(id string, sshPort int) error {
 	args = append(args, "-nic", nicCmd)
 	//args = append(args, "-nographic")
 
-	runPidFile := filepath.Join(CacheDir, id+".pid")
-	args = append(args, "-pidfile", runPidFile)
+	vmPidFile := filepath.Join(CacheDir, id, runPidFile)
+	args = append(args, "-pidfile", vmPidFile)
 
-	bootcDiskImage := filepath.Join(CacheDir, id+".img")
-	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", bootcDiskImage)
+	vmDiskImage := filepath.Join(CacheDir, id, bootcDiskImage)
+	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
 
 	cmd := exec.Command("qemu-system-x86_64", args...)
@@ -219,7 +227,7 @@ func loadImageToDefaultMachine(id, name string) error {
 	// Load the image to the podman machine VM
 	// (this step is unnecessary in macos or using podman machine in linux, but my podman is too old)
 	//podman load -i /mnt/55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f.tar
-	ociImgFileName := filepath.Join("/mnt", id+".tar")
+	ociImgFileName := filepath.Join("/mnt", id, bootcOciArchive)
 	cmd = []string{"podman", "load", "-i", ociImgFileName}
 	if err := runOnDefaultMachine(cmd); err != nil {
 		return err
@@ -235,7 +243,7 @@ func loadImageToDefaultMachine(id, name string) error {
 
 func installImage(id string) error {
 	// Create a raw disk image
-	imgFileName := filepath.Join(CacheDir, id+".img")
+	imgFileName := filepath.Join(CacheDir, id, bootcDiskImage)
 	imgFile, err := os.Create(imgFileName)
 	if err != nil {
 		return err
@@ -249,7 +257,7 @@ func installImage(id string) error {
 
 	// We assume this will be /dev/loop0
 	//losetup --show -P -f /mnt/55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f.img
-	diskImg := filepath.Join("/mnt", id+".img")
+	diskImg := filepath.Join("/mnt", id, bootcDiskImage)
 	cmd := []string{"losetup", "--show", "-P", "-f", diskImg}
 	if err := runOnDefaultMachine(cmd); err != nil {
 		return err
@@ -373,7 +381,7 @@ func pullImage(containerImage string) error {
 
 func saveImage(id string) error {
 	var args []string
-	output := filepath.Join(CacheDir, id+".tar")
+	output := filepath.Join(CacheDir, id, bootcOciArchive)
 	args = append(args, "save", "--format", "oci-archive", "-o", output, id)
 	cmd := exec.Command("podman", args...)
 	cmd.Stdout = os.Stdout
