@@ -7,19 +7,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var rmCmd = &cobra.Command{
-	Use:     "rm NAME",
-	Short:   "Remove installed OS Containers",
-	Long:    "Remove installed OS Containers",
-	Args:    cobra.ExactArgs(1),
-	Example: `osc rm fedora-base`,
-	Run:     removeVmCmd,
-}
+/*
+	var rmCmd = &cobra.Command{
+		Use:     "rm NAME",
+		Short:   "Remove installed OS Containers",
+		Long:    "Remove installed OS Containers",
+		Args:    cobra.ExactArgs(1),
+		Example: `osc rm fedora-base`,
+		Run:     removeVmCmd,
+	}
 
-func init() {
-	RootCmd.AddCommand(rmCmd)
-}
-
+	func init() {
+		RootCmd.AddCommand(rmCmd)
+	}
+*/
 func removeVmCmd(_ *cobra.Command, args []string) {
 	err := Remove(args[0])
 	if err != nil {

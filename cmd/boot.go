@@ -16,9 +16,9 @@ import (
 )
 
 type osVmConfig struct {
-	User          string
-	CloudInitFile string
-	KsFile        string
+	User         string
+	CloudInitDir string
+	KsFile       string
 }
 
 var (
@@ -36,8 +36,8 @@ var (
 func init() {
 	RootCmd.AddCommand(bootCmd)
 	bootCmd.Flags().StringVar(&vmConfig.User, "user", "root", "--user <user name>")
-	bootCmd.Flags().StringVar(&vmConfig.CloudInitFile, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory]")
-	bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "[unimplemented]")
+	bootCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] transport: cdrom | http")
+	bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "--ks [kickstart file]")
 }
 
 func boot(flags *cobra.Command, args []string) {
@@ -82,9 +82,10 @@ func boot(flags *cobra.Command, args []string) {
 	// run the new image
 
 	// cloud-init required?
+	ciPort := -1 // for http transport
 	ciData := flags.Flags().Changed("cloudinit")
 	if ciData {
-		err = SetCloudInit(id, vmConfig.CloudInitFile)
+		ciPort, err = SetCloudInit(id, vmConfig.CloudInitDir)
 		if err != nil {
 			fmt.Println("Error SetCloudInit: ", err)
 			return
@@ -97,7 +98,7 @@ func boot(flags *cobra.Command, args []string) {
 		return
 	}
 
-	err = runBootcVM(id, sshPort, ciData)
+	err = runBootcVM(id, sshPort, ciData, ciPort)
 	if err != nil {
 		fmt.Println("Error runBootcVM: ", err)
 		return
@@ -198,7 +199,7 @@ func killVM(id string) error {
 	return process.Signal(os.Interrupt)
 }
 
-func runBootcVM(id string, sshPort int, ciData bool) error {
+func runBootcVM(id string, sshPort int, ciData bool, ciPort int) error {
 	vmDir := filepath.Join(CacheDir, id)
 
 	var args []string
@@ -216,8 +217,16 @@ func runBootcVM(id string, sshPort int, ciData bool) error {
 	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
 	if ciData {
-		ciDataIso := filepath.Join(vmDir, BootcCiDataIso)
-		args = append(args, "-cdrom", ciDataIso)
+		if ciPort != -1 {
+			// http cloud init data transport
+			// FIXME: this IP address is qemu specific, it should be configurable.
+			smbiosCmd := fmt.Sprintf("type=1,serial=ds=nocloud;s=http://10.0.2.2:%d/", ciPort)
+			args = append(args, "-smbios", smbiosCmd)
+		} else {
+			// cdrom cloud init data transport
+			ciDataIso := filepath.Join(vmDir, BootcCiDataIso)
+			args = append(args, "-cdrom", ciDataIso)
+		}
 	}
 
 	cmd := exec.Command("qemu-system-x86_64", args...)

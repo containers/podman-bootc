@@ -5,19 +5,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var stopCmd = &cobra.Command{
-	Use:     "stop NAME",
-	Short:   "Stop an existing OS Container machine",
-	Long:    "Stop an existing OS Container machine",
-	Args:    cobra.ExactArgs(1),
-	Example: `osc stop fedora-base`,
-	Run:     stopVm,
-}
+/*
+	var stopCmd = &cobra.Command{
+		Use:     "stop NAME",
+		Short:   "Stop an existing OS Container machine",
+		Long:    "Stop an existing OS Container machine",
+		Args:    cobra.ExactArgs(1),
+		Example: `osc stop fedora-base`,
+		Run:     stopVm,
+	}
 
-func init() {
-	RootCmd.AddCommand(stopCmd)
-}
-
+	func init() {
+		RootCmd.AddCommand(stopCmd)
+	}
+*/
 func stopVm(_ *cobra.Command, args []string) {
 	err := doStopVm(args[0])
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 )
 
 // listCmd represents the hello command
-var listCmd = &cobra.Command{
+/*var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List installed OS Containers",
 	Long:  "List installed OS Containers",
@@ -18,7 +18,7 @@ var listCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(listCmd)
 }
-
+*/
 func list(_ *cobra.Command, _ []string) {
 	err := doList()
 	if err != nil {

@@ -11,19 +11,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var startCmd = &cobra.Command{
-	Use:     "start NAME",
-	Short:   "Start an existing OS Container machine",
-	Long:    "Start an existing OS Container machine",
-	Args:    cobra.ExactArgs(1),
-	Example: `osc start fedora-base`,
-	Run:     startVm,
-}
+/*
+	var startCmd = &cobra.Command{
+		Use:     "start NAME",
+		Short:   "Start an existing OS Container machine",
+		Long:    "Start an existing OS Container machine",
+		Args:    cobra.ExactArgs(1),
+		Example: `osc start fedora-base`,
+		Run:     startVm,
+	}
 
-func init() {
-	RootCmd.AddCommand(startCmd)
-}
-
+	func init() {
+		RootCmd.AddCommand(startCmd)
+	}
+*/
 func startVm(_ *cobra.Command, args []string) {
 	err := doStartVm(args[0])
 	if err != nil {

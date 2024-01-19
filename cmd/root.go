@@ -9,11 +9,8 @@ import (
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "osc",
-	Short: "Manage OS containers VMs",
-	Long: `Manage OS containers VMs: install, remove, update, etc. 
-For example:
-
-osc install --name fedora-base quay.io/centos-bootc/fedora-bootc:eln`,
+	Short: "Run bootc containers VMs",
+	Long:  `Run bootc containers VMs`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

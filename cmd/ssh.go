@@ -9,19 +9,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var sshCmd = &cobra.Command{
-	Use:     "ssh NAME",
-	Short:   "SSH into an existing OS Container machine",
-	Long:    "SSH into an existing OS Container machine",
-	Args:    cobra.MinimumNArgs(1),
-	Example: `osc ssh fedora-base`,
-	Run:     ssh,
-}
+/*
+	var sshCmd = &cobra.Command{
+		Use:     "ssh NAME",
+		Short:   "SSH into an existing OS Container machine",
+		Long:    "SSH into an existing OS Container machine",
+		Args:    cobra.MinimumNArgs(1),
+		Example: `osc ssh fedora-base`,
+		Run:     ssh,
+	}
 
-func init() {
-	RootCmd.AddCommand(sshCmd)
-}
-
+	func init() {
+		RootCmd.AddCommand(sshCmd)
+	}
+*/
 func ssh(_ *cobra.Command, args []string) {
 	err := doSsh(args)
 	if err != nil {
