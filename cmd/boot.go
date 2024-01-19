@@ -16,11 +16,9 @@ import (
 )
 
 type osVmConfig struct {
-	Name          string
+	User          string
 	CloudInitFile string
 	KsFile        string
-	//ContainerImage string
-	//SshPubKey      string
 }
 
 var (
@@ -37,9 +35,9 @@ var (
 
 func init() {
 	RootCmd.AddCommand(bootCmd)
-	//installCmd.Flags().StringVar(&vmConfig.Name, "name", "", "OS container name")
-	//installCmd.Flags().StringVar(&vmConfig.CloudInitFile, "cloudinit", "", "[unimplemented]")
-	//installCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "[unimplemented]")
+	bootCmd.Flags().StringVar(&vmConfig.User, "user", "root", "User name")
+	//bootCmd.Flags().StringVar(&vmConfig.CloudInitFile, "cloudinit", "", "[unimplemented]")
+	//bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "[unimplemented]")
 }
 
 func boot(_ *cobra.Command, args []string) {
@@ -105,7 +103,7 @@ func boot(_ *cobra.Command, args []string) {
 
 	// ssh into it
 	cmd := make([]string, 0)
-	err = CommonSSH("root", DefaultIdentity, name, sshPort, cmd)
+	err = CommonSSH(vmConfig.User, DefaultIdentity, name, sshPort, cmd)
 	if err != nil {
 		fmt.Println("Error ssh: ", err)
 		return
