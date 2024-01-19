@@ -36,7 +36,7 @@ var (
 func init() {
 	RootCmd.AddCommand(bootCmd)
 	bootCmd.Flags().StringVar(&vmConfig.User, "user", "root", "--user <user name>")
-	bootCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] transport: cdrom | http")
+	bootCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] transport: cdrom | imds")
 	bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "--ks [kickstart file]")
 }
 

@@ -23,7 +23,7 @@ func SetCloudInit(id, option string) (int, error) {
 		return -1, createCiDataIso(id, path)
 	}
 
-	if transport == "http" {
+	if transport == "imds" {
 		port, err := httpServer(path)
 		if err != nil {
 			return -1, err
