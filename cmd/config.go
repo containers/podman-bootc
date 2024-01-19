@@ -57,9 +57,12 @@ const (
 	configFile     = "vm.json"
 	diskImage      = "disk.qcow2"
 
-	BootcDiskImage  = "disk.img"
-	BootcOciArchive = "image-archive.tar"
-	BootcOciDir     = "image-dir"
+	BootcDiskImage          = "disk.img"
+	BootcOciArchive         = "image-archive.tar"
+	BootcOciDir             = "image-dir"
+	BootcCiDataDir          = "cidata"
+	BootcCiDataIso          = "cidata.iso"
+	BootcCiDefaultTransport = "cdrom"
 )
 
 // VM Status

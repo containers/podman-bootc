@@ -35,13 +35,12 @@ var (
 
 func init() {
 	RootCmd.AddCommand(bootCmd)
-	bootCmd.Flags().StringVar(&vmConfig.User, "user", "root", "User name")
-	//bootCmd.Flags().StringVar(&vmConfig.CloudInitFile, "cloudinit", "", "[unimplemented]")
-	//bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "[unimplemented]")
+	bootCmd.Flags().StringVar(&vmConfig.User, "user", "root", "--user <user name>")
+	bootCmd.Flags().StringVar(&vmConfig.CloudInitFile, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory]")
+	bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "[unimplemented]")
 }
 
-func boot(_ *cobra.Command, args []string) {
-
+func boot(flags *cobra.Command, args []string) {
 	// Pull the image if not present
 	start := time.Now()
 	id, name, err := getImage(args[0])
@@ -81,13 +80,24 @@ func boot(_ *cobra.Command, args []string) {
 	fmt.Println("installImage elapsed: ", elapsed)
 
 	// run the new image
+
+	// cloud-init required?
+	ciData := flags.Flags().Changed("cloudinit")
+	if ciData {
+		err = SetCloudInit(id, vmConfig.CloudInitFile)
+		if err != nil {
+			fmt.Println("Error SetCloudInit: ", err)
+			return
+		}
+	}
+
 	sshPort, err := getFreeTcpPort()
 	if err != nil {
 		fmt.Println("Error ssh getFreeTcpPort: ", err)
 		return
 	}
 
-	err = runBootcVM(id, sshPort)
+	err = runBootcVM(id, sshPort, ciData)
 	if err != nil {
 		fmt.Println("Error runBootcVM: ", err)
 		return
@@ -188,7 +198,9 @@ func killVM(id string) error {
 	return process.Signal(os.Interrupt)
 }
 
-func runBootcVM(id string, sshPort int) error {
+func runBootcVM(id string, sshPort int, ciData bool) error {
+	vmDir := filepath.Join(CacheDir, id)
+
 	var args []string
 	args = append(args, "-accel", "kvm", "-cpu", "host")
 	args = append(args, "-m", "2G")
@@ -197,12 +209,16 @@ func runBootcVM(id string, sshPort int) error {
 	args = append(args, "-nic", nicCmd)
 	//args = append(args, "-nographic")
 
-	vmPidFile := filepath.Join(CacheDir, id, runPidFile)
+	vmPidFile := filepath.Join(vmDir, runPidFile)
 	args = append(args, "-pidfile", vmPidFile)
 
-	vmDiskImage := filepath.Join(CacheDir, id, BootcDiskImage)
+	vmDiskImage := filepath.Join(vmDir, BootcDiskImage)
 	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
+	if ciData {
+		ciDataIso := filepath.Join(vmDir, BootcCiDataIso)
+		args = append(args, "-cdrom", ciDataIso)
+	}
 
 	cmd := exec.Command("qemu-system-x86_64", args...)
 	cmd.Stdout = os.Stdout
