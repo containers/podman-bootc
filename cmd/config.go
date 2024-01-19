@@ -57,9 +57,9 @@ const (
 	configFile     = "vm.json"
 	diskImage      = "disk.qcow2"
 
-	bootcDiskImage  = "disk.img"
-	bootcOciArchive = "image-archive.tar"
-	bootcOciDir     = "image-dir"
+	BootcDiskImage  = "disk.img"
+	BootcOciArchive = "image-archive.tar"
+	BootcOciDir     = "image-dir"
 )
 
 // VM Status

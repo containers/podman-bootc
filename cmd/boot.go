@@ -202,7 +202,7 @@ func runBootcVM(id string, sshPort int) error {
 	vmPidFile := filepath.Join(CacheDir, id, runPidFile)
 	args = append(args, "-pidfile", vmPidFile)
 
-	vmDiskImage := filepath.Join(CacheDir, id, bootcDiskImage)
+	vmDiskImage := filepath.Join(CacheDir, id, BootcDiskImage)
 	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
 
@@ -227,7 +227,7 @@ func loadImageToDefaultMachine(id, name string) error {
 	// Load the image to the podman machine VM
 	// (this step is unnecessary in macos or using podman machine in linux, but my podman is too old)
 	//podman load -i /mnt/55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f.tar
-	ociImgFileName := filepath.Join("/mnt", id, bootcOciArchive)
+	ociImgFileName := filepath.Join("/mnt", id, BootcOciArchive)
 	cmd = []string{"podman", "load", "-i", ociImgFileName}
 	if err := runOnDefaultMachine(cmd); err != nil {
 		return err
@@ -243,7 +243,7 @@ func loadImageToDefaultMachine(id, name string) error {
 
 func installImage(id string) error {
 	// Create a raw disk image
-	imgFileName := filepath.Join(CacheDir, id, bootcDiskImage)
+	imgFileName := filepath.Join(CacheDir, id, BootcDiskImage)
 	imgFile, err := os.Create(imgFileName)
 	if err != nil {
 		return err
@@ -257,7 +257,7 @@ func installImage(id string) error {
 
 	// We assume this will be /dev/loop0
 	//losetup --show -P -f /mnt/55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f.img
-	diskImg := filepath.Join("/mnt", id, bootcDiskImage)
+	diskImg := filepath.Join("/mnt", id, BootcDiskImage)
 	cmd := []string{"losetup", "--show", "-P", "-f", diskImg}
 	if err := runOnDefaultMachine(cmd); err != nil {
 		return err
@@ -381,7 +381,7 @@ func pullImage(containerImage string) error {
 
 func saveImage(id string) error {
 	var args []string
-	output := filepath.Join(CacheDir, id, bootcOciArchive)
+	output := filepath.Join(CacheDir, id, BootcOciArchive)
 	args = append(args, "save", "--format", "oci-archive", "-o", output, id)
 	cmd := exec.Command("podman", args...)
 	cmd.Stdout = os.Stdout
