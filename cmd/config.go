@@ -63,6 +63,7 @@ const (
 	BootcCiDataDir          = "cidata"
 	BootcCiDataIso          = "cidata.iso"
 	BootcCiDefaultTransport = "cdrom"
+	BootcSshKeyFile         = "sshkey"
 )
 
 // VM Status

@@ -16,9 +16,13 @@ import (
 )
 
 type osVmConfig struct {
-	User         string
-	CloudInitDir string
-	KsFile       string
+	Remote         bool
+	User           string
+	SshIdentity    string
+	InjSshIdentity bool
+	GenSshIdentity bool
+	CloudInitDir   string
+	KsFile         string
 }
 
 var (
@@ -35,12 +39,27 @@ var (
 
 func init() {
 	RootCmd.AddCommand(bootCmd)
-	bootCmd.Flags().StringVar(&vmConfig.User, "user", "root", "--user <user name>")
-	bootCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] transport: cdrom | imds")
+	bootCmd.Flags().BoolVarP(&vmConfig.Remote, "remote", "r", false, "--remote")
+	bootCmd.Flags().StringVarP(&vmConfig.User, "user", "u", "root", "--user <user name> (default: root)")
+
+	// I don't want to deal with cobra quirks right now, let's use multiple options
+	bootCmd.Flags().StringVar(&vmConfig.SshIdentity, "ssh-identity", DefaultIdentity, "--ssh-identity <identity file>")
+	bootCmd.Flags().BoolVar(&vmConfig.InjSshIdentity, "inj-ssh-identity", false, "--inj-ssh-identity")
+	bootCmd.Flags().BoolVar(&vmConfig.GenSshIdentity, "gen-ssh-identity", false, "--gen-ssh-identity (implies --inj-ssh-identity)")
+
+	bootCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
+
+	// Unsupported yet
 	bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "--ks [kickstart file]")
 }
 
 func boot(flags *cobra.Command, args []string) {
+
+	if vmConfig.GenSshIdentity && flags.Flags().Changed("ssh-identity") {
+		fmt.Println("Error incompatible options: --ssh-identity and --gen-ssh-identity")
+		return
+	}
+
 	// Pull the image if not present
 	start := time.Now()
 	id, name, err := getImage(args[0])
@@ -92,13 +111,26 @@ func boot(flags *cobra.Command, args []string) {
 		}
 	}
 
+	// Generate ssh credentials
+	injectSshKey := vmConfig.InjSshIdentity
+	if vmConfig.GenSshIdentity {
+		injectSshKey = true
+		vmConfig.SshIdentity = filepath.Join(vmDir, BootcSshKeyFile)
+		_ = os.Remove(vmConfig.SshIdentity)
+		_ = os.Remove(vmConfig.SshIdentity + ".pub")
+		if err := generatekeys(vmConfig.SshIdentity); err != nil {
+			fmt.Println("Error ssh generatekeys: ", err)
+			return
+		}
+	}
+
 	sshPort, err := getFreeTcpPort()
 	if err != nil {
 		fmt.Println("Error ssh getFreeTcpPort: ", err)
 		return
 	}
 
-	err = runBootcVM(id, sshPort, ciData, ciPort)
+	err = runBootcVM(id, sshPort, vmConfig.User, vmConfig.SshIdentity, injectSshKey, ciData, ciPort)
 	if err != nil {
 		fmt.Println("Error runBootcVM: ", err)
 		return
@@ -114,7 +146,7 @@ func boot(flags *cobra.Command, args []string) {
 
 	// ssh into it
 	cmd := make([]string, 0)
-	err = CommonSSH(vmConfig.User, DefaultIdentity, name, sshPort, cmd)
+	err = CommonSSH(vmConfig.User, vmConfig.SshIdentity, name, sshPort, cmd)
 	if err != nil {
 		fmt.Println("Error ssh: ", err)
 		return
@@ -199,7 +231,7 @@ func killVM(id string) error {
 	return process.Signal(os.Interrupt)
 }
 
-func runBootcVM(id string, sshPort int, ciData bool, ciPort int) error {
+func runBootcVM(id string, sshPort int, user, sshIdentity string, injectKey, ciData bool, ciPort int) error {
 	vmDir := filepath.Join(CacheDir, id)
 
 	var args []string
@@ -227,6 +259,15 @@ func runBootcVM(id string, sshPort int, ciData bool, ciPort int) error {
 			ciDataIso := filepath.Join(vmDir, BootcCiDataIso)
 			args = append(args, "-cdrom", ciDataIso)
 		}
+	}
+
+	if injectKey {
+		smbiosCmd, err := oemString(user, sshIdentity)
+		if err != nil {
+			return err
+		}
+
+		args = append(args, "-smbios", smbiosCmd)
 	}
 
 	cmd := exec.Command("qemu-system-x86_64", args...)
