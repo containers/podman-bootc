@@ -16,4 +16,14 @@ if [ "${1}x" == "oscx" ]; then
 	exit 0
 fi
 
+if [ "${1}x" == "-rx" ] || [ "${1}x" == "--remotex" ]; then
+  if [ "${2}x" == "oscx" ]; then
+  	shift
+  	shift
+  	"${OSCDIR}"/osc "$@" --remote
+  	exit 0
+  fi
+fi
+
+
 podman "$@"

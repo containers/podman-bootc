@@ -62,7 +62,7 @@ func boot(flags *cobra.Command, args []string) {
 
 	// Pull the image if not present
 	start := time.Now()
-	id, name, err := getImage(args[0])
+	id, name, err := getImage(args[0], vmConfig.Remote)
 	if err != nil {
 		fmt.Println("Error getImage: ", err)
 		return
@@ -77,20 +77,28 @@ func boot(flags *cobra.Command, args []string) {
 		return
 	}
 
-	// load the bootc image into the podman default machine
-	// (only required on linux)
-	start = time.Now()
-	err = loadImageToDefaultMachine(id, name)
+	err = setupRemoteMachine()
 	if err != nil {
-		fmt.Println("Error loadImageToDefaultMachine: ", err)
+		fmt.Println("Error setupRemoteMachine: ", err)
 		return
 	}
-	elapsed = time.Since(start)
-	fmt.Println("loadImageToDefaultMachine elapsed: ", elapsed)
+
+	// load the bootc image into the podman default machine
+	// (only required on linux)
+	if !vmConfig.Remote {
+		start = time.Now()
+		err = loadImageToDefaultMachine(id, name)
+		if err != nil {
+			fmt.Println("Error loadImageToDefaultMachine: ", err)
+			return
+		}
+		elapsed = time.Since(start)
+		fmt.Println("loadImageToDefaultMachine elapsed: ", elapsed)
+	}
 
 	// install
 	start = time.Now()
-	err = installImage(id)
+	err = installImage(id, vmConfig.Remote)
 	if err != nil {
 		fmt.Println("Error installImage: ", err)
 		return
@@ -276,6 +284,15 @@ func runBootcVM(id string, sshPort int, user, sshIdentity string, injectKey, ciD
 	return cmd.Start()
 }
 
+func setupRemoteMachine() error {
+	// Mount the cache directory
+	cmd := []string{"mount", "-t", "virtiofs", "osc-cache", "/mnt"}
+	if err := runOnDefaultMachine(cmd); err != nil {
+		return err
+	}
+	return nil
+}
+
 func loadImageToDefaultMachine(id, name string) error {
 	// Save the image to the cache
 	err := saveImage(id)
@@ -283,16 +300,11 @@ func loadImageToDefaultMachine(id, name string) error {
 		return err
 	}
 
-	// Mount the cache directory
-	cmd := []string{"mount", "-t", "virtiofs", "osc-cache", "/mnt"}
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
-	}
 	// Load the image to the podman machine VM
 	// (this step is unnecessary in macos or using podman machine in linux, but my podman is too old)
 	//podman load -i /mnt/55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f.tar
 	ociImgFileName := filepath.Join("/mnt", id, BootcOciArchive)
-	cmd = []string{"podman", "load", "-i", ociImgFileName}
+	cmd := []string{"podman", "load", "-i", ociImgFileName}
 	if err := runOnDefaultMachine(cmd); err != nil {
 		return err
 	}
@@ -305,7 +317,7 @@ func loadImageToDefaultMachine(id, name string) error {
 	return nil
 }
 
-func installImage(id string) error {
+func installImage(id string, remote bool) error {
 	// Create a raw disk image
 	imgFileName := filepath.Join(CacheDir, id, BootcDiskImage)
 	imgFile, err := os.Create(imgFileName)
@@ -351,10 +363,12 @@ func installImage(id string) error {
 		return err
 	}
 
-	//podman image rm 55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f
-	cmd = []string{"podman", "image", "rm", id}
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
+	if !remote {
+		//podman image rm 55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f
+		cmd = []string{"podman", "image", "rm", id}
+		if err := runOnDefaultMachine(cmd); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -364,9 +378,9 @@ func runOnDefaultMachine(cmd []string) error {
 	return CommonSSH("root", MachineIdentity, "default machine", 2222, cmd)
 }
 
-func getImage(containerImage string) (string, string, error) {
+func getImage(containerImage string, remote bool) (string, string, error) {
 	// Get the podman image ID
-	id, err := getImageId(containerImage)
+	id, err := getImageId(containerImage, remote)
 	if err != nil {
 		return "", "", err
 	}
@@ -377,7 +391,7 @@ func getImage(containerImage string) (string, string, error) {
 		if !strings.Contains(containerImage, ":") {
 			containerImage = containerImage + ":latest"
 		}
-		id, err = getImageId(containerImage)
+		id, err = getImageId(containerImage, remote)
 		if err != nil {
 			return "", "", err
 		}
@@ -385,11 +399,11 @@ func getImage(containerImage string) (string, string, error) {
 
 	// Pull the image if it's not present
 	if id == "" {
-		err := pullImage(containerImage)
+		err := pullImage(containerImage, remote)
 		if err != nil {
 			return "", "", err
 		}
-		id, err = getImageId(containerImage)
+		id, err = getImageId(containerImage, remote)
 		if err != nil {
 			return "", "", err
 		}
@@ -398,8 +412,12 @@ func getImage(containerImage string) (string, string, error) {
 	return id, containerImage, nil
 }
 
-func getImageId(image string) (string, error) {
+func getImageId(image string, remote bool) (string, error) {
 	var args []string
+	if remote {
+		args = append(args, "-r")
+	}
+
 	args = append(args, "images", "--format", "json")
 	out, err := exec.Command("podman", args...).Output()
 	if err != nil {
@@ -433,8 +451,12 @@ func getImageId(image string) (string, error) {
 	return "", nil
 }
 
-func pullImage(containerImage string) error {
+func pullImage(containerImage string, remote bool) error {
 	var args []string
+	if remote {
+		args = append(args, "-r")
+	}
+
 	args = append(args, "pull", containerImage)
 	cmd := exec.Command("podman", args...)
 	cmd.Stdout = os.Stdout
