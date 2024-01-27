@@ -411,7 +411,7 @@ func getImage(containerImage string, remote bool) (string, string, error) {
 	// Get the podman image ID
 	id, err := getImageId(containerImage, remote)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("failed to get imageID: %w", err)
 	}
 
 	// let's try again adding a tag
@@ -450,12 +450,12 @@ func getImageId(image string, remote bool) (string, error) {
 	args = append(args, "images", "--format", "json")
 	out, err := exec.Command("podman", args...).Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to execute podman: %w", err)
 	}
 
 	var tmp []interface{}
 	if err := json.Unmarshal(out, &tmp); err != nil {
-		return "", err
+		return "", fmt.Errorf("parsing podman output: %w", err)
 	}
 	if len(tmp) == 0 {
 		return "", nil
