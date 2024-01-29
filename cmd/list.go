@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
+	"os"
+	"path/filepath"
+	"strconv"
 )
 
 // listCmd represents the hello command
-/*var listCmd = &cobra.Command{
+var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List installed OS Containers",
 	Long:  "List installed OS Containers",
@@ -18,7 +19,7 @@ import (
 func init() {
 	RootCmd.AddCommand(listCmd)
 }
-*/
+
 func list(_ *cobra.Command, _ []string) {
 	err := doList()
 	if err != nil {
@@ -32,29 +33,30 @@ func doList() error {
 		return err
 	}
 
-	fmt.Printf("%-30s \t\t %5s \t\t %12s \t\t %15s\n", "NAME", "VCPUs", "MEMORY", "DISK SIZE")
-	for _, vm := range vmList {
-		fmt.Printf("%-30s \t\t %4d \t\t %8d MiB \t\t %11d GiB \t %10s\n",
-			vm.Name, vm.Vcpu, vm.Mem, vm.DiskSize, vm.Status())
+	fmt.Printf("%-30s \t\t %15s\n", "IMAGE ID", "VM PID")
+	for name, pid := range vmList {
+		fmt.Printf("%-30s \t\t %10s\n", name, pid)
 	}
 	return nil
 }
 
-func collectVmInfo() (map[string]*VmConfig, error) {
-	vmList := make(map[string]*VmConfig)
+func collectVmInfo() (map[string]string, error) {
+	vmList := make(map[string]string)
 
-	files, err := os.ReadDir(ConfigDir)
+	files, err := os.ReadDir(CacheDir)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, f := range files {
-		if f.IsDir() {
-			vm, err := LoadVmFromDisk(f.Name())
-			if err != nil {
-				return nil, err
+		if f.IsDir() && f.Name() != "machine" && f.Name() != "netinst" {
+			vmPidFile := filepath.Join(CacheDir, f.Name(), runPidFile)
+			pid, _ := readPidFile(vmPidFile)
+			pidRep := "-"
+			if pid != -1 && isPidAlive(pid) {
+				pidRep = strconv.Itoa(pid)
 			}
-			vmList[vm.Name] = vm
+			vmList[f.Name()[:12]] = pidRep
 		}
 	}
 	return vmList, nil
