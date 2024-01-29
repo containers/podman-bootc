@@ -145,3 +145,5 @@ This is just a mockup from the user experience POV, the idea is also to support:
 It would be something similar to how you would work with `podman container`. May be supporting `--rm` and `-i`.
 - Caching, if the bootc oci image didn't change boot from the disk image with reinstalling it 
 - remove installed bootc disk images
+- Serial console support (?) if ssh is not available (instead of injecting a ssh key we should set the user password)
+- If smbios is not available, could be use the EFI partition?
