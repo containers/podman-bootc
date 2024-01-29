@@ -1,4 +1,4 @@
-module osc
+module bootc
 
 go 1.19
 

@@ -1,6 +1,6 @@
 package main
 
-import "osc/cmd"
+import "bootc/cmd"
 
 func main() {
 	if err := cmd.InitOSCDirs(); err != nil {

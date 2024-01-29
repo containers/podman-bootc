@@ -31,6 +31,7 @@ var (
 		Use:   "boot",
 		Short: "Boot OS Containers",
 		Long:  "Boot OS Containers",
+		Args:  cobra.ExactArgs(1),
 		Run:   boot,
 	}
 

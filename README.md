@@ -1,4 +1,5 @@
 # Os container experiment
+## Setup
 Requirements:
 - qemu-img
 - qemu-system-x86_64
@@ -9,13 +10,31 @@ Requirements:
 
 To compile it just run in the project directory
 ```shell
-$ go build osc
+$ go build bootc
 ```
 and call
 ```shell
-$ ./prepare.sh
+$ ./prepare.sh check
+$ ./prepare.sh setup
 ```
-it will download a fedora network install iso and extract the kernel and initrd in `${HOME}/.cache/osc/netinst`
+it will create a default podman machine and copy its imaga disc to `${HOME}/.cache/osc/machine`. It could fail to find 
+the disk, in that case you need to do it manually. First, get the disk location, and copy it to `${HOME}/.cache/osc/machine/image.qcow2`
+
+```shell
+$ jq -r '.ImagePath' < ${HOME}/.config/containers/podman/machine/qemu/podman-machine-default.json 
+```
+
+the just run the machine
+```shell
+$ ./prepare.sh run
+```
+it will run qemu and listen for ssh connection on port `2222`.
+
+last, let's add a podman connection to get the "full experience" :)
+```shell
+$ system connection add --default --identity ~/.ssh/podman-machine-default bootc-machine ssh://root@localhost:2222
+```
+this will cause podman commands with -r to run on this machine.
 
 To simulate that this is part of podman:
 ```shell
@@ -23,76 +42,45 @@ $ alias podman='/path-to/osc/alias.sh'
 ```
 
 ```shell
-$ podman osc
-Manage OS containers VMs: install, remove, update, etc. 
-For example:
-
-osc install --name fedora-base quay.io/centos-bootc/fedora-bootc:eln
+$ podman bootc
+Run bootc containers VMs
 
 Usage:
-  osc [command]
+  bootc [command]
 
 Available Commands:
+  boot        Boot OS Containers
   completion  Generate the autocompletion script for the specified shell
   help        Help about any command
-  install     install an OS container
-  list        List installed OS Containers
-  rm          Remove installed OS Containers
-  ssh         SSH into an existing OS Container machine
-  start       Start an existing OS Container machine
-  stop        Stop an existing OS Container machine
 
 Flags:
-  -h, --help     help for osc
+  -h, --help     help for bootc
   -t, --toggle   Help message for toggle
 
-Use "osc [command] --help" for more information about a command.
+Use "bootc [command] --help" for more information about a command.
 ```
-
-## Installing an os container from a registry
-
-List installed VMs
-```shell
-$ podman osc list
-NAME                           		 VCPUs 		       MEMORY 		       DISK SIZE
-```
-
-let's install a new container from a registry
-```shell
-$ podman osc install --name fedbase quay.io/centos-bootc/fedora-bootc:eln
-...
-(qemu + anaconda output)
-...
-Installed
-```
-this will install `fedora-bootc:eln` in a new VM called `fedbase`
 
 ```shell
-$ podman osc list
-NAME                           		 VCPUs 		       MEMORY 		       DISK SIZE
-fedbase                        		    2 		     2048 MiB 		          10 GiB 	    Stopped
+$ podman -r bootc boot --help
+Boot OS Containers
+
+Usage:
+bootc boot [flags]
+
+Flags:
+--cloudinit string      --cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)
+--gen-ssh-identity      --gen-ssh-identity (implies --inj-ssh-identity)
+-h, --help                  help for boot
+--inj-ssh-identity      --inj-ssh-identity
+--ks string             --ks [kickstart file]
+-r, --remote                --remote
+--ssh-identity string   --ssh-identity <identity file> (default "~/.ssh/id_rsa")
+-u, --user string           --user <user name> (default: root) (default "root")
 ```
 
-now we can start the VM and enter using `ssh`
+## Installing & boot an os container from a local image
 
-```shell
-$ podman osc start fedbase
-$ podman osc ssh fedbase
-Connecting to vm fedbase. To close connection, use `~.` or `exit`
-root@localhost#  
-```
-
-we can also send commands by `ssh` 
-```shell
-$ podman osc ssh fedbase -- uname -a
-Linux localhost.localdomain 6.7.0-0.rc4.35.eln132.x86_64 #1 SMP PREEMPT_DYNAMIC Mon Dec  4 15:54:35 UTC 2023 x86_64 GNU/Linux
-```
-to stop the VM (currently it sends a `poweroff` command via `ssh`)
-```shell
-$ podman osc stop fedbase
-```
-
-## Installing an os container from a local image
+This step is optional because `podman bootc` will pull the image if not present.
 ```shell
 $ podman pull quay.io/centos-bootc/fedora-bootc:eln
 ...
@@ -100,6 +88,7 @@ $ podman images
 REPOSITORY                         TAG         IMAGE ID      CREATED     SIZE
 quay.io/centos-bootc/fedora-bootc  eln         625405bb2004  5 days ago  1.17 GB
 ```
+
 we can install it now usig the `IMAGE ID`, but let's do some modification first
 ```shell
 $ podman run -it --name fbc-new 625405bb2004
@@ -130,33 +119,29 @@ localhost/fbc-new                  latest      f8bf0386c585  4 minutes ago  1.28
 quay.io/centos-bootc/fedora-bootc  eln         625405bb2004  5 days ago     1.17 GB
 ```
 
-let's install our new image
+let's install and boot our new image
 ```shell
-$ podman osc install --name fbc-custom f8bf0386c585
+$ podman bootc boot --gen-ssh-identity f8bf0386c585
 ...
-(qemu + anaconda output)
-...
-Installed
+Installation complete!
+installImage elapsed:  41.181608696s
+Connecting to vm 6c6c2fc015fe. To close connection, use `~.` or `exit`
+Warning: your password will expire in 0 days.
+[root@ibm-p8-kvm-03-guest-02 ~]#
 ```
-
-we can now check if our changes are present
+with `--gen-ssh-identity`, `bootc` will create and inject a new ssh key. 
+Now, we can check if our changes are present
 ```shell
-$ podman osc start fbc-custom
-$ podman osc ssh fbc-custom
-Connecting to vm fbc-custom. To close connection, use `~.` or `exit`
-root@localhost# type vim
+[root@ibm-p8-kvm-03-guest-02 ~]# type vim
 vim is /usr/bin/vim
-root@localhost# poweroff 
-```
-## Removing VMs
-
-Let's remove the installed VMs
-```shell
-$ podman osc list
-NAME                           		 VCPUs 		       MEMORY 		       DISK SIZE
-fedbase                        		    2 		     2048 MiB 		          10 GiB 	    Stopped
-fbc-custom                     		    2 		     2048 MiB 		          10 GiB 	    Stopped
-$ podman osc rm fedbase
-$ podman osc rm fbc-custom
+[root@ibm-p8-kvm-03-guest-02 ~]# exit 
 ```
 
+# Ideas
+
+This is just a mockup from the user experience POV, the idea is also to support:
+- premade disk images
+- Be able to run the bootc container in background and support multiple ssh sessions. 
+It would be something similar to how you would work with `podman container`. May be supporting `--rm` and `-i`.
+- Caching, if the bootc oci image didn't change boot from the disk image with reinstalling it 
+- remove installed bootc disk images
