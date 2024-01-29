@@ -33,7 +33,7 @@ func doList() error {
 		return err
 	}
 
-	fmt.Printf("%-30s \t\t %15s\n", "IMAGE ID", "VM PID")
+	fmt.Printf("%-30s \t\t %15s\n", "ID", "VM PID")
 	for name, pid := range vmList {
 		fmt.Printf("%-30s \t\t %10s\n", name, pid)
 	}
