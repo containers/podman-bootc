@@ -52,6 +52,10 @@ Available Commands:
   boot        Boot OS Containers
   completion  Generate the autocompletion script for the specified shell
   help        Help about any command
+  list        List installed OS Containers
+  rm          Remove installed OS Containers
+  ssh         SSH into an existing OS Container machine
+  stop        Stop an existing OS Container machine
 
 Flags:
   -h, --help     help for bootc
@@ -65,17 +69,19 @@ $ podman -r bootc boot --help
 Boot OS Containers
 
 Usage:
-bootc boot [flags]
+  bootc boot [flags]
 
 Flags:
---cloudinit string      --cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)
---gen-ssh-identity      --gen-ssh-identity (implies --inj-ssh-identity)
--h, --help                  help for boot
---inj-ssh-identity      --inj-ssh-identity
---ks string             --ks [kickstart file]
--r, --remote                --remote
---ssh-identity string   --ssh-identity <identity file> (default "~/.ssh/id_rsa")
--u, --user string           --user <user name> (default: root) (default "root")
+      --cloudinit string      --cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)
+      --gen-ssh-identity      --gen-ssh-identity (implies --inj-ssh-identity)
+  -h, --help                  help for boot
+      --inj-ssh-identity      --inj-ssh-identity
+  -i, --interactive           -i
+      --ks string             --ks [kickstart file]
+  -r, --remote                --remote
+      --rm                    Kill the running VM when it exits, requires --interactive
+      --ssh-identity string   --ssh-identity <identity file> (default "/home/german/.ssh/id_rsa")
+  -u, --user string           --user <user name> (default: root) (default "root")
 ```
 
 ## Installing & boot an os container from a local image
@@ -121,7 +127,7 @@ quay.io/centos-bootc/fedora-bootc  eln         625405bb2004  5 days ago     1.17
 
 let's install and boot our new image
 ```shell
-$ podman bootc boot --gen-ssh-identity f8bf0386c585
+$ podman bootc boot --interactive --rm --gen-ssh-identity f8bf0386c585
 ...
 Installation complete!
 installImage elapsed:  41.181608696s
@@ -139,11 +145,9 @@ vim is /usr/bin/vim
 
 # Ideas
 
-This is just a mockup from the user experience POV, the idea is also to support:
-- premade disk images
-- Be able to run the bootc container in background and support multiple ssh sessions. 
-It would be something similar to how you would work with `podman container`. May be supporting `--rm` and `-i`.
+This is just a mockup from the user experience POV, the idea is also to:
+- Support premade disk images
+- Add support for `--rmi`, to remove the disk image after vm exit
 - Caching, if the bootc oci image didn't change boot from the disk image with reinstalling it 
-- remove installed bootc disk images
 - Serial console support (?) if ssh is not available (instead of injecting a ssh key we should set the user password)
 - If smbios is not available, could be use the EFI partition?
