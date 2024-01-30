@@ -5,20 +5,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-/*
-	var stopCmd = &cobra.Command{
-		Use:     "stop NAME",
-		Short:   "Stop an existing OS Container machine",
-		Long:    "Stop an existing OS Container machine",
-		Args:    cobra.ExactArgs(1),
-		Example: `osc stop fedora-base`,
-		Run:     stopVm,
-	}
+var stopCmd = &cobra.Command{
+	Use:   "stop ID",
+	Short: "Stop an existing OS Container machine",
+	Long:  "Stop an existing OS Container machine",
+	Args:  cobra.ExactArgs(1),
+	Run:   stopVm,
+}
 
-	func init() {
-		RootCmd.AddCommand(stopCmd)
-	}
-*/
+func init() {
+	RootCmd.AddCommand(stopCmd)
+}
+
 func stopVm(_ *cobra.Command, args []string) {
 	err := doStopVm(args[0])
 	if err != nil {
@@ -26,14 +24,13 @@ func stopVm(_ *cobra.Command, args []string) {
 	}
 }
 
-func doStopVm(name string) error {
+func doStopVm(id string) error {
 
-	runCfg, err := LoadRunningVmFromDisk(name)
+	cfg, err := loadConfig(id)
 	if err != nil {
 		return err
 	}
 
-	vm := NewVMPartial(name)
 	poweroff := []string{"poweroff"}
-	return CommonSSH("root", vm.SshPriKey, name, int(runCfg.SshPort), poweroff)
+	return CommonSSH("root", cfg.SshIdentity, id, cfg.SshPort, poweroff)
 }

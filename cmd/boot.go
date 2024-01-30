@@ -16,13 +16,16 @@ import (
 )
 
 type osVmConfig struct {
-	Remote         bool
-	User           string
-	SshIdentity    string
-	InjSshIdentity bool
-	GenSshIdentity bool
-	CloudInitDir   string
-	KsFile         string
+	Remote          bool
+	User            string
+	SshIdentity     string
+	InjSshIdentity  bool
+	GenSshIdentity  bool
+	CloudInitDir    string
+	KsFile          string
+	Interactive     bool
+	RemoveVm        bool // Kill the running VM when it exits
+	RemoveDiskImage bool // After exit of the VM, remove the disk image
 }
 
 var (
@@ -50,8 +53,13 @@ func init() {
 
 	bootCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
 
+	bootCmd.Flags().BoolVarP(&vmConfig.Interactive, "interactive", "i", false, "-i")
+	bootCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
+	//bootCmd.Flags().BoolVar(&vmConfig.RemoveDiskImage, "rmi", false, "After exit of the VM, remove the disk image") // TODO: it requires a monitor process
+
 	// Unsupported yet
-	bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "--ks [kickstart file]")
+	bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "--ks [kickstart file]") // TODO
+
 }
 
 func boot(flags *cobra.Command, args []string) {
@@ -159,31 +167,37 @@ func boot(flags *cobra.Command, args []string) {
 		return
 	}
 
-	// wait for VM
-	//time.Sleep(5 * time.Second) // just for now
-	err = waitForVM(id, sshPort)
-	if err != nil {
-		fmt.Println("Error waitForVM: ", err)
-		return
-	}
+	// Only for interactive
+	if vmConfig.Interactive {
+		// wait for VM
+		//time.Sleep(5 * time.Second) // just for now
+		err = waitForVM(id, sshPort)
+		if err != nil {
+			fmt.Println("Error waitForVM: ", err)
+			return
+		}
 
-	// ssh into it
-	cmd := make([]string, 0)
-	err = CommonSSH(vmConfig.User, vmConfig.SshIdentity, name, sshPort, cmd)
-	if err != nil {
-		fmt.Println("Error ssh: ", err)
-		return
-	}
+		// ssh into it
+		cmd := make([]string, 0)
+		err = CommonSSH(vmConfig.User, vmConfig.SshIdentity, name, sshPort, cmd)
+		if err != nil {
+			fmt.Println("Error ssh: ", err)
+			return
+		}
 
-	// stop the new VM
-	//poweroff := []string{"poweroff"}
-	//err = CommonSSH("root", DefaultIdentity, name, sshPort, poweroff)
-	err = killVM(id)
-	if err != nil {
-		fmt.Println("Error poweroff: ", err)
-		return
+		if vmConfig.RemoveVm {
+			// stop the new VM
+			//poweroff := []string{"poweroff"}
+			//err = CommonSSH("root", DefaultIdentity, name, sshPort, poweroff)
+			err = killVM(id)
+			if err != nil {
+				fmt.Println("Error poweroff: ", err)
+				return
+			}
+		}
 	}
 }
+
 func waitForVM(id string, port int) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
