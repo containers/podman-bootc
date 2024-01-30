@@ -145,6 +145,20 @@ func boot(flags *cobra.Command, args []string) {
 		return
 	}
 
+	// write down the config file
+	bcConfig := BcVmConfig{SshPort: sshPort, SshIdentity: vmConfig.SshIdentity}
+	bcConfigMsh, err := json.Marshal(bcConfig)
+	if err != nil {
+		fmt.Println("Error marshal: ", err)
+		return
+	}
+	cfgFile := filepath.Join(vmDir, BootcCfgFile)
+	err = os.WriteFile(cfgFile, bcConfigMsh, 0660)
+	if err != nil {
+		fmt.Println("Error write cfg file: ", err)
+		return
+	}
+
 	// wait for VM
 	//time.Sleep(5 * time.Second) // just for now
 	err = waitForVM(id, sshPort)

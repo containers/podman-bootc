@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -64,7 +65,14 @@ const (
 	BootcCiDataIso          = "cidata.iso"
 	BootcCiDefaultTransport = "cdrom"
 	BootcSshKeyFile         = "sshkey"
+	BootcSshPortFile        = "sshport"
+	BootcCfgFile            = "bc.cfg"
 )
+
+type BcVmConfig struct {
+	SshPort     int    `json:"SshPort"`
+	SshIdentity string `json:"SshPriKey"`
+}
 
 // VM Status
 const (
@@ -256,4 +264,44 @@ func fileExists(path string) (bool, error) {
 		err = nil
 	}
 	return exists, err
+}
+
+func bootcImagePath(id string) (string, error) {
+	files, err := os.ReadDir(CacheDir)
+	if err != nil {
+		return "", err
+	}
+
+	imageId := ""
+	for _, f := range files {
+		if f.IsDir() && strings.HasPrefix(f.Name(), id) {
+			imageId = f.Name()
+		}
+	}
+
+	if imageId == "" {
+		return "", fmt.Errorf("local installation '%s' does not exists", id)
+	}
+
+	return filepath.Join(CacheDir, imageId), nil
+}
+
+func loadConfig(id string) (*BcVmConfig, error) {
+	vmPath, err := bootcImagePath(id)
+	if err != nil {
+		return nil, err
+	}
+
+	cfgFile := filepath.Join(vmPath, BootcCfgFile)
+	fileContent, err := os.ReadFile(cfgFile)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := new(BcVmConfig)
+	if err := json.Unmarshal(fileContent, cfg); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }

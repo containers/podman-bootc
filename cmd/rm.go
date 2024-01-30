@@ -2,11 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"github.com/spf13/cobra"
 )
 
 var rmCmd = &cobra.Command{
@@ -30,23 +28,11 @@ func removeVmCmd(_ *cobra.Command, args []string) {
 }
 
 func Remove(id string) error {
-	files, err := os.ReadDir(CacheDir)
+	vmDir, err := bootcImagePath(id)
 	if err != nil {
 		return err
 	}
 
-	imageId := ""
-	for _, f := range files {
-		if f.IsDir() && strings.HasPrefix(f.Name(), id) {
-			imageId = f.Name()
-		}
-	}
-
-	if imageId == "" {
-		return fmt.Errorf("local installation '%s' does not exists", id)
-	}
-
-	vmDir := filepath.Join(CacheDir, imageId)
 	vmPidFile := filepath.Join(vmDir, runPidFile)
 	pid, _ := readPidFile(vmPidFile)
 	if pid != -1 && isPidAlive(pid) {

@@ -9,20 +9,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-/*
-	var sshCmd = &cobra.Command{
-		Use:     "ssh NAME",
-		Short:   "SSH into an existing OS Container machine",
-		Long:    "SSH into an existing OS Container machine",
-		Args:    cobra.MinimumNArgs(1),
-		Example: `osc ssh fedora-base`,
-		Run:     ssh,
-	}
+var sshCmd = &cobra.Command{
+	Use:     "ssh <ID>",
+	Short:   "SSH into an existing OS Container machine",
+	Long:    "SSH into an existing OS Container machine",
+	Args:    cobra.MinimumNArgs(1),
+	Example: `podman bootc ssh 6c6c2fc015fe`,
+	Run:     ssh,
+}
+var sshUser string
 
-	func init() {
-		RootCmd.AddCommand(sshCmd)
-	}
-*/
+func init() {
+	RootCmd.AddCommand(sshCmd)
+	sshCmd.Flags().StringVarP(&sshUser, "user", "u", "root", "--user <user name> (default: root)")
+}
+
 func ssh(_ *cobra.Command, args []string) {
 	err := doSsh(args)
 	if err != nil {
@@ -31,20 +32,18 @@ func ssh(_ *cobra.Command, args []string) {
 }
 
 func doSsh(args []string) error {
-	name := args[0]
-	runCfg, err := LoadRunningVmFromDisk(name)
+	id := args[0]
+	cfg, err := loadConfig(id)
 	if err != nil {
 		return err
 	}
-
-	vm := NewVMPartial(name)
 
 	cmd := make([]string, 0)
 	if len(args) > 1 {
 		cmd = args[1:]
 	}
 
-	return CommonSSH("root", vm.SshPriKey, name, int(runCfg.SshPort), cmd)
+	return CommonSSH(sshUser, cfg.SshIdentity, id, cfg.SshPort, cmd)
 }
 
 func CommonSSH(username, identityPath, name string, sshPort int, inputArgs []string) error {
