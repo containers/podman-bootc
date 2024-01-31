@@ -31,11 +31,12 @@ type osVmConfig struct {
 var (
 	// listCmd represents the hello command
 	bootCmd = &cobra.Command{
-		Use:   "boot",
-		Short: "Boot OS Containers",
-		Long:  "Boot OS Containers",
-		Args:  cobra.ExactArgs(1),
-		Run:   boot,
+		Use:          "boot",
+		Short:        "Boot OS Containers",
+		Long:         "Boot OS Containers",
+		Args:         cobra.ExactArgs(1),
+		RunE:         boot,
+		SilenceUsage: true,
 	}
 
 	vmConfig = osVmConfig{}
@@ -62,19 +63,17 @@ func init() {
 
 }
 
-func boot(flags *cobra.Command, args []string) {
+func boot(flags *cobra.Command, args []string) error {
 
 	if vmConfig.GenSshIdentity && flags.Flags().Changed("ssh-identity") {
-		fmt.Println("Error incompatible options: --ssh-identity and --gen-ssh-identity")
-		return
+		return fmt.Errorf("incompatible options: --ssh-identity and --gen-ssh-identity")
 	}
 
 	// Pull the image if not present
 	start := time.Now()
 	id, name, err := getImage(args[0], vmConfig.Remote)
 	if err != nil {
-		fmt.Println("Error getImage: ", err)
-		return
+		return fmt.Errorf("getImage: %w", err)
 	}
 	elapsed := time.Since(start)
 	fmt.Println("getImage elapsed: ", elapsed)
@@ -82,14 +81,12 @@ func boot(flags *cobra.Command, args []string) {
 	// Create VM cache dir
 	vmDir := filepath.Join(CacheDir, id)
 	if err := os.MkdirAll(vmDir, os.ModePerm); err != nil {
-		fmt.Println("Error MkdirAll: ", err)
-		return
+		return fmt.Errorf("MkdirAll: %w", err)
 	}
 
 	err = setupRemoteMachine()
 	if err != nil {
-		fmt.Println("Error setupRemoteMachine: ", err)
-		return
+		return fmt.Errorf("setupRemoteMachine: %w", err)
 	}
 
 	// load the bootc image into the podman default machine
@@ -98,8 +95,7 @@ func boot(flags *cobra.Command, args []string) {
 		start = time.Now()
 		err = loadImageToDefaultMachine(id, name)
 		if err != nil {
-			fmt.Println("Error loadImageToDefaultMachine: ", err)
-			return
+			return fmt.Errorf("loadImageToDefaultMachine: %w", err)
 		}
 		elapsed = time.Since(start)
 		fmt.Println("loadImageToDefaultMachine elapsed: ", elapsed)
@@ -109,8 +105,7 @@ func boot(flags *cobra.Command, args []string) {
 	start = time.Now()
 	err = installImage(id, vmConfig.Remote)
 	if err != nil {
-		fmt.Println("Error installImage: ", err)
-		return
+		return fmt.Errorf("installImage: %w", err)
 	}
 	elapsed = time.Since(start)
 	fmt.Println("installImage elapsed: ", elapsed)
@@ -123,8 +118,7 @@ func boot(flags *cobra.Command, args []string) {
 	if ciData {
 		ciPort, err = SetCloudInit(id, vmConfig.CloudInitDir)
 		if err != nil {
-			fmt.Println("Error SetCloudInit: ", err)
-			return
+			return fmt.Errorf("setting up cloud init failed: %w", err)
 		}
 	}
 
@@ -136,35 +130,30 @@ func boot(flags *cobra.Command, args []string) {
 		_ = os.Remove(vmConfig.SshIdentity)
 		_ = os.Remove(vmConfig.SshIdentity + ".pub")
 		if err := generatekeys(vmConfig.SshIdentity); err != nil {
-			fmt.Println("Error ssh generatekeys: ", err)
-			return
+			return fmt.Errorf("ssh generatekeys: %w", err)
 		}
 	}
 
 	sshPort, err := getFreeTcpPort()
 	if err != nil {
-		fmt.Println("Error ssh getFreeTcpPort: ", err)
-		return
+		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
 	}
 
 	err = runBootcVM(id, sshPort, vmConfig.User, vmConfig.SshIdentity, injectSshKey, ciData, ciPort)
 	if err != nil {
-		fmt.Println("Error runBootcVM: ", err)
-		return
+		return fmt.Errorf("runBootcVM: %w", err)
 	}
 
 	// write down the config file
 	bcConfig := BcVmConfig{SshPort: sshPort, SshIdentity: vmConfig.SshIdentity}
 	bcConfigMsh, err := json.Marshal(bcConfig)
 	if err != nil {
-		fmt.Println("Error marshal: ", err)
-		return
+		return fmt.Errorf("marshalling: %w", err)
 	}
 	cfgFile := filepath.Join(vmDir, BootcCfgFile)
 	err = os.WriteFile(cfgFile, bcConfigMsh, 0660)
 	if err != nil {
-		fmt.Println("Error write cfg file: ", err)
-		return
+		return fmt.Errorf("write cfg file: %w", err)
 	}
 
 	// Only for interactive
@@ -173,16 +162,14 @@ func boot(flags *cobra.Command, args []string) {
 		//time.Sleep(5 * time.Second) // just for now
 		err = waitForVM(id, sshPort)
 		if err != nil {
-			fmt.Println("Error waitForVM: ", err)
-			return
+			return fmt.Errorf("waitForVM: %w", err)
 		}
 
 		// ssh into it
 		cmd := make([]string, 0)
 		err = CommonSSH(vmConfig.User, vmConfig.SshIdentity, name, sshPort, cmd)
 		if err != nil {
-			fmt.Println("Error ssh: ", err)
-			return
+			return fmt.Errorf("ssh: %w", err)
 		}
 
 		if vmConfig.RemoveVm {
@@ -191,11 +178,12 @@ func boot(flags *cobra.Command, args []string) {
 			//err = CommonSSH("root", DefaultIdentity, name, sshPort, poweroff)
 			err = killVM(id)
 			if err != nil {
-				fmt.Println("Error poweroff: ", err)
-				return
+				return fmt.Errorf("poweroff: %w", err)
 			}
 		}
 	}
+
+	return nil
 }
 
 func waitForVM(id string, port int) error {
@@ -411,7 +399,7 @@ func getImage(containerImage string, remote bool) (string, string, error) {
 	// Get the podman image ID
 	id, err := getImageId(containerImage, remote)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("failed to get imageID: %w", err)
 	}
 
 	// let's try again adding a tag
@@ -450,12 +438,12 @@ func getImageId(image string, remote bool) (string, error) {
 	args = append(args, "images", "--format", "json")
 	out, err := exec.Command("podman", args...).Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to execute podman: %w", err)
 	}
 
 	var tmp []interface{}
 	if err := json.Unmarshal(out, &tmp); err != nil {
-		return "", err
+		return "", fmt.Errorf("parsing podman output: %w", err)
 	}
 	if len(tmp) == 0 {
 		return "", nil
