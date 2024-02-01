@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"bootc/pkg/config"
 )
 
 func SetCloudInit(id, option string) (int, error) {
@@ -49,7 +51,7 @@ func getPath(option string) string {
 }
 
 func createCiDataIso(id, inDir string) error {
-	vmDir := filepath.Join(CacheDir, id)
+	vmDir := filepath.Join(config.CacheDir, id)
 	isoOutFile := filepath.Join(vmDir, BootcCiDataIso)
 
 	var args []string

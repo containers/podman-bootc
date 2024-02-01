@@ -19,6 +19,8 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+
+	"bootc/pkg/config"
 )
 
 type VmInstallConfig struct {
@@ -218,9 +220,9 @@ func installVM(ksUrl string, vm VmConfig, vfsdSocket string) error {
 	args = append(args, "-m", memSizeCmd)
 	args = append(args, "-smp", strconv.FormatUint(vm.Vcpu, 10))
 
-	args = append(args, "-cdrom", IsoImage)
-	args = append(args, "-kernel", Kernel)
-	args = append(args, "-initrd", Initrd)
+	args = append(args, "-cdrom", config.IsoImage)
+	args = append(args, "-kernel", config.Kernel)
+	args = append(args, "-initrd", config.Initrd)
 	args = append(args, "-pidfile", vm.InstallPidFile())
 
 	driveCmd := fmt.Sprintf("if=virtio,file=%s", vm.DiskImage)

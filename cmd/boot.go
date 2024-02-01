@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"bootc/pkg/config"
 )
 
 type osVmConfig struct {
@@ -48,7 +50,7 @@ func init() {
 	bootCmd.Flags().StringVarP(&vmConfig.User, "user", "u", "root", "--user <user name> (default: root)")
 
 	// I don't want to deal with cobra quirks right now, let's use multiple options
-	bootCmd.Flags().StringVar(&vmConfig.SshIdentity, "ssh-identity", DefaultIdentity, "--ssh-identity <identity file>")
+	bootCmd.Flags().StringVar(&vmConfig.SshIdentity, "ssh-identity", config.DefaultIdentity, "--ssh-identity <identity file>")
 	bootCmd.Flags().BoolVar(&vmConfig.InjSshIdentity, "inj-ssh-identity", false, "--inj-ssh-identity")
 	bootCmd.Flags().BoolVar(&vmConfig.GenSshIdentity, "gen-ssh-identity", false, "--gen-ssh-identity (implies --inj-ssh-identity)")
 
@@ -79,7 +81,7 @@ func boot(flags *cobra.Command, args []string) error {
 	fmt.Println("getImage elapsed: ", elapsed)
 
 	// Create VM cache dir
-	vmDir := filepath.Join(CacheDir, id)
+	vmDir := filepath.Join(config.CacheDir, id)
 	if err := os.MkdirAll(vmDir, os.ModePerm); err != nil {
 		return fmt.Errorf("MkdirAll: %w", err)
 	}
@@ -193,12 +195,12 @@ func waitForVM(id string, port int) error {
 	}
 	defer watcher.Close()
 
-	err = watcher.Add(filepath.Join(CacheDir, id))
+	err = watcher.Add(filepath.Join(config.CacheDir, id))
 	if err != nil {
 		return err
 	}
 
-	vmPidFile := filepath.Join(CacheDir, id, runPidFile)
+	vmPidFile := filepath.Join(config.CacheDir, id, runPidFile)
 	for {
 		exists, err := fileExists(vmPidFile)
 		if err != nil {
@@ -242,7 +244,7 @@ func portIsOpen(port int) (bool, error) {
 }
 
 func killVM(id string) error {
-	vmPidFile := filepath.Join(CacheDir, id, runPidFile)
+	vmPidFile := filepath.Join(config.CacheDir, id, runPidFile)
 	pid, err := readPidFile(vmPidFile)
 	if err != nil {
 		return err
@@ -257,7 +259,7 @@ func killVM(id string) error {
 }
 
 func runBootcVM(id string, sshPort int, user, sshIdentity string, injectKey, ciData bool, ciPort int) error {
-	vmDir := filepath.Join(CacheDir, id)
+	vmDir := filepath.Join(config.CacheDir, id)
 
 	var args []string
 	args = append(args, "-accel", "kvm", "-cpu", "host")
@@ -336,7 +338,7 @@ func loadImageToDefaultMachine(id, name string) error {
 
 func installImage(id string, remote bool) error {
 	// Create a raw disk image
-	imgFileName := filepath.Join(CacheDir, id, BootcDiskImage)
+	imgFileName := filepath.Join(config.CacheDir, id, BootcDiskImage)
 	imgFile, err := os.Create(imgFileName)
 	if err != nil {
 		return err
@@ -392,7 +394,7 @@ func installImage(id string, remote bool) error {
 }
 
 func runOnDefaultMachine(cmd []string) error {
-	return CommonSSH("root", MachineIdentity, "default machine", 2222, cmd)
+	return CommonSSH("root", config.MachineIdentity, "default machine", 2222, cmd)
 }
 
 func getImage(containerImage string, remote bool) (string, string, error) {
@@ -484,7 +486,7 @@ func pullImage(containerImage string, remote bool) error {
 
 func saveImage(id string) error {
 	var args []string
-	output := filepath.Join(CacheDir, id, BootcOciArchive)
+	output := filepath.Join(config.CacheDir, id, BootcOciArchive)
 	args = append(args, "save", "--format", "oci-archive", "-o", output, id)
 	cmd := exec.Command("podman", args...)
 	cmd.Stdout = os.Stdout
