@@ -1,0 +1,10 @@
+stages:
+  - build
+  - test
+
+build:
+  image: registry.access.redhat.com/ubi9/go-toolset
+  stage: build
+  script:
+    - go build -buildvcs=false bootc
+    - go test
