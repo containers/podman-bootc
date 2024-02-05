@@ -6,44 +6,24 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"bootc/pkg/config"
 )
 
-const (
-	runBaseDir = "/run/user"
-	configDir  = ".config/osc"
-	cacheDir   = ".cache/osc"
-	netInstDir = cacheDir + "/netinst"
-)
-
-var (
-	User, _   = user.Current()
-	SshDir    = filepath.Join(User.HomeDir, ".ssh")
-	ConfigDir = filepath.Join(User.HomeDir, configDir)
-	RunDir    = filepath.Join(runBaseDir, User.Uid, "osc")
-	IsoImage  = filepath.Join(User.HomeDir, netInstDir, "fedora-netinst.iso")
-	Kernel    = filepath.Join(User.HomeDir, netInstDir, "vmlinuz")
-	Initrd    = filepath.Join(User.HomeDir, netInstDir, "initrd.img")
-
-	CacheDir        = filepath.Join(User.HomeDir, cacheDir)
-	MachineImage    = filepath.Join(CacheDir, "machine/image.qcow2")
-	MachineIdentity = filepath.Join(User.HomeDir, ".ssh", "podman-machine-default")
-	DefaultIdentity = filepath.Join(User.HomeDir, ".ssh", "id_rsa")
-)
 
 func InitOSCDirs() error {
-	if err := os.MkdirAll(ConfigDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(config.ConfigDir, os.ModePerm); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(CacheDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(config.CacheDir, os.ModePerm); err != nil {
 		return err
 	}
 
-	if err := os.MkdirAll(RunDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(config.RunDir, os.ModePerm); err != nil {
 		return err
 	}
 
@@ -107,9 +87,9 @@ func NewVM(name string, vcpu, mem, diskSize uint64) VmConfig {
 func NewVMPartial(name string) VmConfig {
 	return VmConfig{
 		Name:       name,
-		DiskImage:  filepath.Join(ConfigDir, name, diskImage),
-		RunPidFile: filepath.Join(RunDir, name, runPidFile),
-		SshPriKey:  filepath.Join(SshDir, name),
+		DiskImage:  filepath.Join(config.ConfigDir, name, diskImage),
+		RunPidFile: filepath.Join(config.RunDir, name, runPidFile),
+		SshPriKey:  filepath.Join(config.SshDir, name),
 	}
 }
 
@@ -267,7 +247,7 @@ func fileExists(path string) (bool, error) {
 }
 
 func bootcImagePath(id string) (string, error) {
-	files, err := os.ReadDir(CacheDir)
+	files, err := os.ReadDir(config.CacheDir)
 	if err != nil {
 		return "", err
 	}
@@ -283,7 +263,7 @@ func bootcImagePath(id string) (string, error) {
 		return "", fmt.Errorf("local installation '%s' does not exists", id)
 	}
 
-	return filepath.Join(CacheDir, imageId), nil
+	return filepath.Join(config.CacheDir, imageId), nil
 }
 
 func loadConfig(id string) (*BcVmConfig, error) {
