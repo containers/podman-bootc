@@ -9,8 +9,8 @@ import (
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "bootc",
-	Short: "Run bootc containers VMs",
-	Long:  `Run bootc containers VMs`,
+	Short: "Run bootable containers as a virtual machine",
+	Long:  "Run bootable containers as a virtual machine",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

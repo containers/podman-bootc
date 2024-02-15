@@ -23,7 +23,7 @@ Requirements:
 To compile it just run in the project directory
 
 ```shell
-$ go build bootc
+$ make
 ```
 
 and call

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"bootc/pkg/config"
+	"podmanbootc/pkg/config"
 )
 
 

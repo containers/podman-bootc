@@ -1,2 +1,2 @@
 all:
-	go build bootc
+	go build podmanbootc

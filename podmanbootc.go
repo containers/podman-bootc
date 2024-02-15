@@ -1,6 +1,6 @@
 package main
 
-import "bootc/cmd"
+import "podmanbootc/cmd"
 
 func main() {
 	if err := cmd.InitOSCDirs(); err != nil {
