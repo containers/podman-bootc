@@ -18,6 +18,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"podmanbootc/pkg/config"
+	"podmanbootc/pkg/disk"
+	"podmanbootc/pkg/podman"
 )
 
 type osVmConfig struct {
@@ -61,27 +63,7 @@ func init() {
 
 	bootCmd.Flags().BoolVarP(&vmConfig.Interactive, "interactive", "i", false, "-i")
 	bootCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
-	//bootCmd.Flags().BoolVar(&vmConfig.RemoveDiskImage, "rmi", false, "After exit of the VM, remove the disk image") // TODO: it requires a monitor process
 
-	// Unsupported yet
-	bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "--ks [kickstart file]") // TODO
-
-}
-
-// TODO merge with the version in https://github.com/cgwalters/podman/commits/machine-exec/
-func podmanRecurse(args []string) *exec.Cmd {
-	c := exec.Command("podman", args...)
-	// Default always to using podman machine via the root connection
-	c.Env = append(c.Environ(), "CONTAINER_CONNECTION=podman-machine-default-root")
-	return c
-}
-
-// podmanRecurseRun synchronously runs podman as a subprocess, propagating stdout/stderr
-func podmanRecurseRun(args []string) error {
-	c := podmanRecurse(args)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
 }
 
 func boot(flags *cobra.Command, args []string) error {
@@ -96,17 +78,17 @@ func boot(flags *cobra.Command, args []string) error {
 	start := time.Now()
 	// Run an inspect to see if the image is present, otherwise pull.
 	// TODO: Add podman pull --if-not-present or so.
-	c := podmanRecurse([]string{"image", "inspect", "-f", "{{.Digest}}", imageName})
+	c := podman.PodmanRecurse([]string{"image", "inspect", "-f", "{{.Digest}}", imageName})
 	if err := c.Run(); err != nil {
 		logrus.Debugf("Inspect failed: %v", err)
-		if err := podmanRecurseRun([]string{"pull", imageName}); err != nil {
+		if err := podman.PodmanRecurseRun([]string{"pull", imageName}); err != nil {
 			return fmt.Errorf("pulling image: %w", err)
 		}
 	}
 	elapsed := time.Since(start)
 	fmt.Println("getImage elapsed: ", elapsed)
 
-	c = podmanRecurse([]string{"image", "inspect", "-f", "{{.Digest}}", imageName})
+	c = podman.PodmanRecurse([]string{"image", "inspect", "-f", "{{.Digest}}", imageName})
 	buf := &bytes.Buffer{}
 	c.Stdout = buf
 	c.Stderr = os.Stderr
@@ -125,7 +107,7 @@ func boot(flags *cobra.Command, args []string) error {
 
 	// install
 	start = time.Now()
-	err := installImage(vmDir, imageName)
+	err := disk.GetOrInstallImage(vmDir, imageName, imageDigest)
 	if err != nil {
 		return fmt.Errorf("installImage: %w", err)
 	}
@@ -290,7 +272,7 @@ func runBootcVM(vmDir string, sshPort int, user, sshIdentity string, injectKey, 
 	vmPidFile := filepath.Join(vmDir, runPidFile)
 	args = append(args, "-pidfile", vmPidFile)
 
-	vmDiskImage := filepath.Join(vmDir, BootcDiskImage)
+	vmDiskImage := filepath.Join(vmDir, config.BootcDiskImage)
 	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
 	if ciData {
@@ -319,56 +301,4 @@ func runBootcVM(vmDir string, sshPort int, user, sshIdentity string, injectKey, 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Start()
-}
-
-func installImage(vmdir, imageName string) error {
-	// Create a raw disk image
-	imgFileName := filepath.Join(vmdir, BootcDiskImage)
-	imgFile, err := os.Create(imgFileName)
-	if err != nil {
-		return err
-	}
-	if err := imgFile.Truncate(10e+9); err != nil {
-		return err
-	}
-
-	// https://github.com/containers/bootc/blob/main/docs/install.md#using-bootc-install-to-disk---via-loopback
-	volumeBind := fmt.Sprintf("%s:/output", vmdir)
-	installArgsForPodman := []string{"run", "--rm", "--privileged", "--pid=host", "-v", volumeBind, "--security-opt", "label=type:unconfined_t"}
-	if val, ok := os.LookupEnv("PODMAN_BOOTC_INST_ARGS"); ok {
-		parts := strings.Split(val, " ")
-		installArgsForPodman = append(installArgsForPodman, parts...)
-	}
-	installArgsForPodman = append(installArgsForPodman, imageName)
-	installArgsForBootc := []string{"bootc", "install", "to-disk", "--via-loopback", "--generic-image", "--skip-fetch-check", "/output/" + BootcDiskImage}
-	if err := podmanRecurseRun(append(installArgsForPodman, installArgsForBootc...)); err != nil {
-		return fmt.Errorf("failed to generate disk image via bootc install to-disk --via-loopback")
-	}
-
-	return nil
-}
-
-func pullImage(containerImage string, remote bool) error {
-	var args []string
-	if remote {
-		args = append(args, "-r")
-	}
-
-	args = append(args, "pull", containerImage)
-	cmd := exec.Command("podman", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	return err
-}
-
-func saveImage(id string) error {
-	var args []string
-	output := filepath.Join(config.CacheDir, id, BootcOciArchive)
-	args = append(args, "save", "--format", "oci-archive", "-o", output, id)
-	cmd := exec.Command("podman", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	return err
 }

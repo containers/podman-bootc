@@ -10,6 +10,8 @@ const (
 	configDir  = ".config/osc"
 	cacheDir   = ".cache/osc"
 	netInstDir = cacheDir + "/netinst"
+
+	BootcDiskImage = "disk.img"
 )
 
 var (

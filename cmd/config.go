@@ -14,7 +14,6 @@ import (
 	"podmanbootc/pkg/config"
 )
 
-
 func InitOSCDirs() error {
 	if err := os.MkdirAll(config.ConfigDir, os.ModePerm); err != nil {
 		return err
@@ -38,7 +37,6 @@ const (
 	configFile     = "vm.json"
 	diskImage      = "disk.qcow2"
 
-	BootcDiskImage          = "disk.img"
 	BootcOciArchive         = "image-archive.tar"
 	BootcOciDir             = "image-dir"
 	BootcCiDataDir          = "cidata"
