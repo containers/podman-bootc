@@ -22,7 +22,7 @@ func InitOSCDirs() error {
 		return err
 	}
 
-	if err := os.MkdirAll(config.RunDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(config.RunDir(), os.ModePerm); err != nil {
 		return err
 	}
 
@@ -86,7 +86,7 @@ func NewVMPartial(name string) VmConfig {
 	return VmConfig{
 		Name:       name,
 		DiskImage:  filepath.Join(config.ConfigDir, name, diskImage),
-		RunPidFile: filepath.Join(config.RunDir, name, runPidFile),
+		RunPidFile: filepath.Join(config.RunDir(), name, runPidFile),
 		SshPriKey:  filepath.Join(config.SshDir, name),
 	}
 }

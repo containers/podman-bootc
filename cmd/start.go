@@ -122,7 +122,7 @@ func getFreeTcpPort() (int, error) {
 }
 
 func countRunningVms() (int, error) {
-	files, err := os.ReadDir(config.RunDir)
+	files, err := os.ReadDir(config.RunDir())
 	if err != nil {
 		return -1, err
 	}
