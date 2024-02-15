@@ -24,17 +24,17 @@ type osVmConfig struct {
 	User            string
 	CloudInitDir    string
 	KsFile          string
-	Interactive     bool
+	Background      bool
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
 }
 
 var (
 	// listCmd represents the hello command
-	bootCmd = &cobra.Command{
-		Use:          "boot",
-		Short:        "Boot OS Containers",
-		Long:         "Boot OS Containers",
+	runCmd = &cobra.Command{
+		Use:          "run",
+		Short:        "Run a bootc container as a VM",
+		Long:         "Run a bootc container as a VM",
 		Args:         cobra.ExactArgs(1),
 		RunE:         boot,
 		SilenceUsage: true,
@@ -44,14 +44,14 @@ var (
 )
 
 func init() {
-	RootCmd.AddCommand(bootCmd)
-	bootCmd.Flags().BoolVarP(&vmConfig.Remote, "remote", "r", false, "--remote")
-	bootCmd.Flags().StringVarP(&vmConfig.User, "user", "u", "root", "--user <user name> (default: root)")
+	RootCmd.AddCommand(runCmd)
+	runCmd.Flags().BoolVarP(&vmConfig.Remote, "remote", "r", false, "--remote")
+	runCmd.Flags().StringVarP(&vmConfig.User, "user", "u", "root", "--user <user name> (default: root)")
 
-	bootCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
+	runCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
 
-	bootCmd.Flags().BoolVarP(&vmConfig.Interactive, "interactive", "i", false, "-i")
-	bootCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
+	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
+	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
 
 }
 
@@ -118,8 +118,7 @@ func boot(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("write cfg file: %w", err)
 	}
 
-	// Only for interactive
-	if vmConfig.Interactive {
+	if !vmConfig.Background {
 		// wait for VM
 		//time.Sleep(5 * time.Second) // just for now
 		err = waitForVM(vmDir, sshPort)
