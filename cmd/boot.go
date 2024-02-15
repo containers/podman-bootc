@@ -4,38 +4,37 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/cobra"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
+	"github.com/spf13/cobra"
+
 	"podmanbootc/pkg/config"
+	"podmanbootc/pkg/disk"
+	"podmanbootc/pkg/podman"
 )
 
 type osVmConfig struct {
 	Remote          bool
 	User            string
-	SshIdentity     string
-	InjSshIdentity  bool
-	GenSshIdentity  bool
 	CloudInitDir    string
 	KsFile          string
-	Interactive     bool
+	Background      bool
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
 }
 
 var (
 	// listCmd represents the hello command
-	bootCmd = &cobra.Command{
-		Use:          "boot",
-		Short:        "Boot OS Containers",
-		Long:         "Boot OS Containers",
+	runCmd = &cobra.Command{
+		Use:          "run",
+		Short:        "Run a bootc container as a VM",
+		Long:         "Run a bootc container as a VM",
 		Args:         cobra.ExactArgs(1),
 		RunE:         boot,
 		SilenceUsage: true,
@@ -45,95 +44,46 @@ var (
 )
 
 func init() {
-	RootCmd.AddCommand(bootCmd)
-	bootCmd.Flags().BoolVarP(&vmConfig.Remote, "remote", "r", false, "--remote")
-	bootCmd.Flags().StringVarP(&vmConfig.User, "user", "u", "root", "--user <user name> (default: root)")
+	RootCmd.AddCommand(runCmd)
+	runCmd.Flags().BoolVarP(&vmConfig.Remote, "remote", "r", false, "--remote")
+	runCmd.Flags().StringVarP(&vmConfig.User, "user", "u", "root", "--user <user name> (default: root)")
 
-	// I don't want to deal with cobra quirks right now, let's use multiple options
-	bootCmd.Flags().StringVar(&vmConfig.SshIdentity, "ssh-identity", config.DefaultIdentity, "--ssh-identity <identity file>")
-	bootCmd.Flags().BoolVar(&vmConfig.InjSshIdentity, "inj-ssh-identity", false, "--inj-ssh-identity")
-	bootCmd.Flags().BoolVar(&vmConfig.GenSshIdentity, "gen-ssh-identity", false, "--gen-ssh-identity (implies --inj-ssh-identity)")
+	runCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
 
-	bootCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
-
-	bootCmd.Flags().BoolVarP(&vmConfig.Interactive, "interactive", "i", false, "-i")
-	bootCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
-	//bootCmd.Flags().BoolVar(&vmConfig.RemoveDiskImage, "rmi", false, "After exit of the VM, remove the disk image") // TODO: it requires a monitor process
-
-	// Unsupported yet
-	bootCmd.Flags().StringVar(&vmConfig.KsFile, "ks", "", "--ks [kickstart file]") // TODO
+	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
+	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
 
 }
 
 func boot(flags *cobra.Command, args []string) error {
+	imageName := args[0]
 
-	if vmConfig.GenSshIdentity && flags.Flags().Changed("ssh-identity") {
-		return fmt.Errorf("incompatible options: --ssh-identity and --gen-ssh-identity")
-	}
-
-	// Pull the image if not present
-	start := time.Now()
-	id, name, err := getImage(args[0], vmConfig.Remote)
+	imageDigest, err := podman.GetImage(imageName)
 	if err != nil {
-		return fmt.Errorf("getImage: %w", err)
+		return err
 	}
-	elapsed := time.Since(start)
-	fmt.Println("getImage elapsed: ", elapsed)
 
-	// Create VM cache dir
-	vmDir := filepath.Join(config.CacheDir, id)
+	// Create VM cache dir; for now we have a single global one, so if
+	// you boot a different container image, then any previous disk
+	// images are GC'd.
+	vmDir := filepath.Join(config.CacheDir)
 	if err := os.MkdirAll(vmDir, os.ModePerm); err != nil {
 		return fmt.Errorf("MkdirAll: %w", err)
 	}
 
-	err = setupRemoteMachine()
-	if err != nil {
-		return fmt.Errorf("setupRemoteMachine: %w", err)
-	}
-
-	// load the bootc image into the podman default machine
-	// (only required on linux)
-	if !vmConfig.Remote {
-		start = time.Now()
-		err = loadImageToDefaultMachine(id, name)
-		if err != nil {
-			return fmt.Errorf("loadImageToDefaultMachine: %w", err)
-		}
-		elapsed = time.Since(start)
-		fmt.Println("loadImageToDefaultMachine elapsed: ", elapsed)
-	}
-
 	// install
-	start = time.Now()
-	err = installImage(id, vmConfig.Remote)
-	if err != nil {
+	start := time.Now()
+	if err := disk.GetOrInstallImage(vmDir, imageName, imageDigest); err != nil {
 		return fmt.Errorf("installImage: %w", err)
 	}
-	elapsed = time.Since(start)
+	elapsed := time.Since(start)
 	fmt.Println("installImage elapsed: ", elapsed)
 
 	// run the new image
 
-	// cloud-init required?
-	ciPort := -1 // for http transport
-	ciData := flags.Flags().Changed("cloudinit")
-	if ciData {
-		ciPort, err = SetCloudInit(id, vmConfig.CloudInitDir)
-		if err != nil {
-			return fmt.Errorf("setting up cloud init failed: %w", err)
-		}
-	}
-
-	// Generate ssh credentials
-	injectSshKey := vmConfig.InjSshIdentity
-	if vmConfig.GenSshIdentity {
-		injectSshKey = true
-		vmConfig.SshIdentity = filepath.Join(vmDir, BootcSshKeyFile)
-		_ = os.Remove(vmConfig.SshIdentity)
-		_ = os.Remove(vmConfig.SshIdentity + ".pub")
-		if err := generatekeys(vmConfig.SshIdentity); err != nil {
-			return fmt.Errorf("ssh generatekeys: %w", err)
-		}
+	privkey, pubkey, err := podman.MachineSSHKey()
+	if err != nil {
+		return fmt.Errorf("getting podman ssh")
 	}
 
 	sshPort, err := getFreeTcpPort()
@@ -141,13 +91,23 @@ func boot(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
 	}
 
-	err = runBootcVM(id, sshPort, vmConfig.User, vmConfig.SshIdentity, injectSshKey, ciData, ciPort)
+	// cloud-init required?
+	ciPort := -1 // for http transport
+	ciData := flags.Flags().Changed("cloudinit")
+	if ciData {
+		ciPort, err = SetCloudInit(imageDigest, vmConfig.CloudInitDir)
+		if err != nil {
+			return fmt.Errorf("setting up cloud init failed: %w", err)
+		}
+	}
+
+	err = runBootcVM(vmDir, sshPort, vmConfig.User, pubkey, ciData, ciPort)
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}
 
 	// write down the config file
-	bcConfig := BcVmConfig{SshPort: sshPort, SshIdentity: vmConfig.SshIdentity}
+	bcConfig := BcVmConfig{SshPort: sshPort, SshIdentity: privkey}
 	bcConfigMsh, err := json.Marshal(bcConfig)
 	if err != nil {
 		return fmt.Errorf("marshalling: %w", err)
@@ -158,18 +118,17 @@ func boot(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("write cfg file: %w", err)
 	}
 
-	// Only for interactive
-	if vmConfig.Interactive {
+	if !vmConfig.Background {
 		// wait for VM
 		//time.Sleep(5 * time.Second) // just for now
-		err = waitForVM(id, sshPort)
+		err = waitForVM(vmDir, sshPort)
 		if err != nil {
 			return fmt.Errorf("waitForVM: %w", err)
 		}
 
 		// ssh into it
 		cmd := make([]string, 0)
-		err = CommonSSH(vmConfig.User, vmConfig.SshIdentity, name, sshPort, cmd)
+		err = CommonSSH(vmConfig.User, privkey, imageName, sshPort, cmd)
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
 		}
@@ -178,7 +137,7 @@ func boot(flags *cobra.Command, args []string) error {
 			// stop the new VM
 			//poweroff := []string{"poweroff"}
 			//err = CommonSSH("root", DefaultIdentity, name, sshPort, poweroff)
-			err = killVM(id)
+			err = killVM(vmDir)
 			if err != nil {
 				return fmt.Errorf("poweroff: %w", err)
 			}
@@ -188,19 +147,19 @@ func boot(flags *cobra.Command, args []string) error {
 	return nil
 }
 
-func waitForVM(id string, port int) error {
+func waitForVM(vmDir string, port int) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
 	}
 	defer watcher.Close()
 
-	err = watcher.Add(filepath.Join(config.CacheDir, id))
+	err = watcher.Add(vmDir)
 	if err != nil {
 		return err
 	}
 
-	vmPidFile := filepath.Join(config.CacheDir, id, runPidFile)
+	vmPidFile := filepath.Join(vmDir, runPidFile)
 	for {
 		exists, err := fileExists(vmPidFile)
 		if err != nil {
@@ -243,8 +202,8 @@ func portIsOpen(port int) (bool, error) {
 	return false, nil
 }
 
-func killVM(id string) error {
-	vmPidFile := filepath.Join(config.CacheDir, id, runPidFile)
+func killVM(vmDir string) error {
+	vmPidFile := filepath.Join(vmDir, runPidFile)
 	pid, err := readPidFile(vmPidFile)
 	if err != nil {
 		return err
@@ -258,9 +217,7 @@ func killVM(id string) error {
 	return process.Signal(os.Interrupt)
 }
 
-func runBootcVM(id string, sshPort int, user, sshIdentity string, injectKey, ciData bool, ciPort int) error {
-	vmDir := filepath.Join(config.CacheDir, id)
-
+func runBootcVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciPort int) error {
 	var args []string
 	args = append(args, "-accel", "kvm", "-cpu", "host")
 	args = append(args, "-m", "2G")
@@ -272,7 +229,7 @@ func runBootcVM(id string, sshPort int, user, sshIdentity string, injectKey, ciD
 	vmPidFile := filepath.Join(vmDir, runPidFile)
 	args = append(args, "-pidfile", vmPidFile)
 
-	vmDiskImage := filepath.Join(vmDir, BootcDiskImage)
+	vmDiskImage := filepath.Join(vmDir, config.BootcDiskImage)
 	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
 	if ciData {
@@ -288,7 +245,7 @@ func runBootcVM(id string, sshPort int, user, sshIdentity string, injectKey, ciD
 		}
 	}
 
-	if injectKey {
+	if sshIdentity != "" {
 		smbiosCmd, err := oemString(user, sshIdentity)
 		if err != nil {
 			return err
@@ -301,196 +258,4 @@ func runBootcVM(id string, sshPort int, user, sshIdentity string, injectKey, ciD
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Start()
-}
-
-func setupRemoteMachine() error {
-	// Mount the cache directory
-	cmd := []string{"mount", "-t", "virtiofs", "osc-cache", "/mnt"}
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
-	}
-	return nil
-}
-
-func loadImageToDefaultMachine(id, name string) error {
-	// Save the image to the cache
-	err := saveImage(id)
-	if err != nil {
-		return err
-	}
-
-	// Load the image to the podman machine VM
-	// (this step is unnecessary in macos or using podman machine in linux, but my podman is too old)
-	//podman load -i /mnt/55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f.tar
-	ociImgFileName := filepath.Join("/mnt", id, BootcOciArchive)
-	cmd := []string{"podman", "load", "-i", ociImgFileName}
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
-	}
-
-	//podman tag 55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f quay.io/centos-bootc/fedora-bootc:eln
-	cmd = []string{"podman", "tag", id, name}
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
-	}
-	return nil
-}
-
-func installImage(id string, remote bool) error {
-	// Create a raw disk image
-	imgFileName := filepath.Join(config.CacheDir, id, BootcDiskImage)
-	imgFile, err := os.Create(imgFileName)
-	if err != nil {
-		return err
-	}
-	// just ~5GB
-	if err := imgFile.Truncate(5e+9); err != nil {
-		return err
-	}
-
-	// Installing
-
-	// We assume this will be /dev/loop0
-	//losetup --show -P -f /mnt/55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f.img
-	diskImg := filepath.Join("/mnt", id, BootcDiskImage)
-	cmd := []string{"losetup", "--show", "-P", "-f", diskImg}
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
-	}
-
-	cmd = []string{"losetup"}
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
-	}
-	cmd = []string{"podman", "images"}
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
-	}
-
-	//podman run -it --rm --privileged --pid=host --security-opt label=type:unconfined_t 55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f \
-	// bootc install to-disk --wipe --target-no-signature-verification --generic-image --skip-fetch-check  /dev/loop0
-	podmanCmd := []string{"podman", "run", "--rm", "--privileged", "--pid=host", "--security-opt", "label=type:unconfined_t", id}
-	bootcCmd := []string{"bootc", "install", "to-disk", "--wipe", "--target-no-signature-verification", "--generic-image", "--skip-fetch-check", "/dev/loop0"}
-	cmd = append(podmanCmd, bootcCmd...)
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
-	}
-
-	//losetup -d /dev/loop0
-	cmd = []string{"losetup", "-d", "/dev/loop0"}
-	if err := runOnDefaultMachine(cmd); err != nil {
-		return err
-	}
-
-	if !remote {
-		//podman image rm 55953d3d5ec33b2e636b044f21f9d1255fbd0b14340c75f4480135349eea908f
-		cmd = []string{"podman", "image", "rm", id}
-		if err := runOnDefaultMachine(cmd); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func runOnDefaultMachine(cmd []string) error {
-	return CommonSSH("root", config.MachineIdentity, "default machine", 2222, cmd)
-}
-
-func getImage(containerImage string, remote bool) (string, string, error) {
-	// Get the podman image ID
-	id, err := getImageId(containerImage, remote)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to get imageID: %w", err)
-	}
-
-	// let's try again adding a tag
-	if id == "" {
-		// Add "latest" tag if missing
-		if !strings.Contains(containerImage, ":") {
-			containerImage = containerImage + ":latest"
-		}
-		id, err = getImageId(containerImage, remote)
-		if err != nil {
-			return "", "", err
-		}
-	}
-
-	// Pull the image if it's not present
-	if id == "" {
-		err := pullImage(containerImage, remote)
-		if err != nil {
-			return "", "", err
-		}
-		id, err = getImageId(containerImage, remote)
-		if err != nil {
-			return "", "", err
-		}
-	}
-
-	return id, containerImage, nil
-}
-
-func getImageId(image string, remote bool) (string, error) {
-	var args []string
-	if remote {
-		args = append(args, "-r")
-	}
-
-	args = append(args, "images", "--format", "json")
-	out, err := exec.Command("podman", args...).Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to execute podman: %w", err)
-	}
-
-	var tmp []interface{}
-	if err := json.Unmarshal(out, &tmp); err != nil {
-		return "", fmt.Errorf("parsing podman output: %w", err)
-	}
-	if len(tmp) == 0 {
-		return "", nil
-	}
-
-	for _, obj := range tmp {
-		o := obj.(map[string]interface{})
-		id := o["Id"].(string)
-		short := id[:12]
-
-		if image == id || image == short {
-			return id, nil
-		}
-
-		for _, name := range o["Names"].([]interface{}) {
-			if image == name {
-				return id, nil
-			}
-		}
-	}
-
-	return "", nil
-}
-
-func pullImage(containerImage string, remote bool) error {
-	var args []string
-	if remote {
-		args = append(args, "-r")
-	}
-
-	args = append(args, "pull", containerImage)
-	cmd := exec.Command("podman", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	return err
-}
-
-func saveImage(id string) error {
-	var args []string
-	output := filepath.Join(config.CacheDir, id, BootcOciArchive)
-	args = append(args, "save", "--format", "oci-archive", "-o", output, id)
-	cmd := exec.Command("podman", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	return err
 }
