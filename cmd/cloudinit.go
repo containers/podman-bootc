@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"bootc/pkg/config"
+	"podmanbootc/pkg/config"
 )
 
 func SetCloudInit(id, option string) (int, error) {

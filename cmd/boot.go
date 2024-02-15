@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"bootc/pkg/config"
+	"podmanbootc/pkg/config"
 )
 
 type osVmConfig struct {
