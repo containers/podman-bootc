@@ -1,5 +1,17 @@
-# Os container experiment
+# Streamlining podman + bootc interactions
+
+This project aims to address <https://github.com/containers/podman/issues/21243>
+in alignment with the <https://github.com/containers/bootc> project.
+
+## Goals
+
+- Be a scriptable CLI that offers an efficient and ergonomic "edit-compile-debug" cycle for bootable containers.
+- Be a backend for <https://github.com/containers/podman-desktop-extension-bootc>
+- Work on both MacOS and Linux
+
+
 ## Setup
+
 Requirements:
 - qemu-img
 - qemu-system-x86_64
@@ -9,14 +21,18 @@ Requirements:
 - golang
 
 To compile it just run in the project directory
+
 ```shell
 $ go build bootc
 ```
+
 and call
+
 ```shell
 $ ./prepare.sh check
 $ ./prepare.sh setup
 ```
+
 it will create a default podman machine and copy its imaga disc to `${HOME}/.cache/osc/machine`. It could fail to find 
 the disk, in that case you need to do it manually. First, get the disk location, and copy it to `${HOME}/.cache/osc/machine/image.qcow2`
 
@@ -25,18 +41,21 @@ $ jq -r '.ImagePath' < ${HOME}/.config/containers/podman/machine/qemu/podman-mac
 ```
 
 the just run the machine
+
 ```shell
 $ ./prepare.sh run
 ```
 it will run qemu and listen for ssh connection on port `2222`.
 
 last, let's add a podman connection to get the "full experience" :)
+
 ```shell
 $ system connection add --default --identity ~/.ssh/podman-machine-default bootc-machine ssh://root@localhost:2222
 ```
 this will cause podman commands with -r to run on this machine.
 
 To simulate that this is part of podman:
+
 ```shell
 $ alias podman='/path-to/osc/alias.sh'
 ```
