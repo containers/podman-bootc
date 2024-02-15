@@ -40,7 +40,6 @@ const (
 	BootcOciArchive         = "image-archive.tar"
 	BootcOciDir             = "image-dir"
 	BootcCiDataDir          = "cidata"
-	BootcCiDataIso          = "cidata.iso"
 	BootcCiDefaultTransport = "cdrom"
 	BootcSshKeyFile         = "sshkey"
 	BootcSshPortFile        = "sshport"

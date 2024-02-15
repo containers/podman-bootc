@@ -1,4 +1,4 @@
-package cmd
+package smbios
 
 import (
 	"encoding/base64"
@@ -25,7 +25,7 @@ func tmpFileInjectSshKeyEnc(user, pubKeyFile string) (string, error) {
 	return tmpFileCmdEnc, nil
 }
 
-func oemString(user, pubKeyFile string) (string, error) {
+func OemString(user, pubKeyFile string) (string, error) {
 	tmpFilesCmd, err := tmpFileInjectSshKeyEnc(user, pubKeyFile)
 	if err != nil {
 		return "", err
