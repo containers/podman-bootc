@@ -52,7 +52,7 @@ func InstallImage(vmdir, containerImage, imageDigest string) error {
 	}
 	installArgsForPodman = append(installArgsForPodman, containerImage)
 	installArgsForBootc := []string{"bootc", "install", "to-disk", "--via-loopback", "--generic-image", "--skip-fetch-check", "/output/" + filepath.Base(temporaryDisk.Name())}
-	if err := podman.PodmanRecurseRun(append(installArgsForPodman, installArgsForBootc...)); err != nil {
+	if err := podman.Run(append(installArgsForPodman, installArgsForBootc...)); err != nil {
 		return fmt.Errorf("failed to generate disk image via bootc install to-disk --via-loopback")
 	}
 	serializedMeta := diskFromContainerMeta{

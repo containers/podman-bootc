@@ -26,7 +26,7 @@ func tmpFileInjectSshKeyEnc(user, pubKeyFile string) (string, error) {
 }
 
 func oemString(user, pubKeyFile string) (string, error) {
-	tmpFilesCmd, err := tmpFileInjectSshKeyEnc(user, pubKeyFile+".pub")
+	tmpFilesCmd, err := tmpFileInjectSshKeyEnc(user, pubKeyFile)
 	if err != nil {
 		return "", err
 	}

@@ -52,6 +52,7 @@ func CommonSSH(username, identityPath, name string, sshPort int, inputArgs []str
 
 	args := []string{"-i", identityPath, "-p", port, sshDestination,
 		"-o", "IdentitiesOnly=yes",
+		"-o", "PasswordAuthentication=no",
 		"-o", "StrictHostKeyChecking=no", "-o", "LogLevel=ERROR", "-o", "SetEnv=LC_ALL="}
 	if len(inputArgs) > 0 {
 		args = append(args, inputArgs...)

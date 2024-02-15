@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,11 +9,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"podmanbootc/pkg/config"
@@ -25,9 +22,6 @@ import (
 type osVmConfig struct {
 	Remote          bool
 	User            string
-	SshIdentity     string
-	InjSshIdentity  bool
-	GenSshIdentity  bool
 	CloudInitDir    string
 	KsFile          string
 	Interactive     bool
@@ -54,11 +48,6 @@ func init() {
 	bootCmd.Flags().BoolVarP(&vmConfig.Remote, "remote", "r", false, "--remote")
 	bootCmd.Flags().StringVarP(&vmConfig.User, "user", "u", "root", "--user <user name> (default: root)")
 
-	// I don't want to deal with cobra quirks right now, let's use multiple options
-	bootCmd.Flags().StringVar(&vmConfig.SshIdentity, "ssh-identity", config.DefaultIdentity, "--ssh-identity <identity file>")
-	bootCmd.Flags().BoolVar(&vmConfig.InjSshIdentity, "inj-ssh-identity", false, "--inj-ssh-identity")
-	bootCmd.Flags().BoolVar(&vmConfig.GenSshIdentity, "gen-ssh-identity", false, "--gen-ssh-identity (implies --inj-ssh-identity)")
-
 	bootCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
 
 	bootCmd.Flags().BoolVarP(&vmConfig.Interactive, "interactive", "i", false, "-i")
@@ -67,35 +56,12 @@ func init() {
 }
 
 func boot(flags *cobra.Command, args []string) error {
-
-	if vmConfig.GenSshIdentity && flags.Flags().Changed("ssh-identity") {
-		return fmt.Errorf("incompatible options: --ssh-identity and --gen-ssh-identity")
-	}
-
 	imageName := args[0]
 
-	// Pull the image if not present
-	start := time.Now()
-	// Run an inspect to see if the image is present, otherwise pull.
-	// TODO: Add podman pull --if-not-present or so.
-	c := podman.PodmanRecurse([]string{"image", "inspect", "-f", "{{.Digest}}", imageName})
-	if err := c.Run(); err != nil {
-		logrus.Debugf("Inspect failed: %v", err)
-		if err := podman.PodmanRecurseRun([]string{"pull", imageName}); err != nil {
-			return fmt.Errorf("pulling image: %w", err)
-		}
+	imageDigest, err := podman.GetImage(imageName)
+	if err != nil {
+		return err
 	}
-	elapsed := time.Since(start)
-	fmt.Println("getImage elapsed: ", elapsed)
-
-	c = podman.PodmanRecurse([]string{"image", "inspect", "-f", "{{.Digest}}", imageName})
-	buf := &bytes.Buffer{}
-	c.Stdout = buf
-	c.Stderr = os.Stderr
-	if err := c.Run(); err != nil {
-		return fmt.Errorf("failed to inspect %s: %w", imageName, err)
-	}
-	imageDigest := strings.TrimSpace(buf.String())
 
 	// Create VM cache dir; for now we have a single global one, so if
 	// you boot a different container image, then any previous disk
@@ -106,15 +72,24 @@ func boot(flags *cobra.Command, args []string) error {
 	}
 
 	// install
-	start = time.Now()
-	err := disk.GetOrInstallImage(vmDir, imageName, imageDigest)
-	if err != nil {
+	start := time.Now()
+	if err := disk.GetOrInstallImage(vmDir, imageName, imageDigest); err != nil {
 		return fmt.Errorf("installImage: %w", err)
 	}
-	elapsed = time.Since(start)
+	elapsed := time.Since(start)
 	fmt.Println("installImage elapsed: ", elapsed)
 
 	// run the new image
+
+	privkey, pubkey, err := podman.MachineSSHKey()
+	if err != nil {
+		return fmt.Errorf("getting podman ssh")
+	}
+
+	sshPort, err := getFreeTcpPort()
+	if err != nil {
+		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
+	}
 
 	// cloud-init required?
 	ciPort := -1 // for http transport
@@ -126,30 +101,13 @@ func boot(flags *cobra.Command, args []string) error {
 		}
 	}
 
-	// Generate ssh credentials
-	injectSshKey := vmConfig.InjSshIdentity
-	if vmConfig.GenSshIdentity {
-		injectSshKey = true
-		vmConfig.SshIdentity = filepath.Join(vmDir, BootcSshKeyFile)
-		_ = os.Remove(vmConfig.SshIdentity)
-		_ = os.Remove(vmConfig.SshIdentity + ".pub")
-		if err := generatekeys(vmConfig.SshIdentity); err != nil {
-			return fmt.Errorf("ssh generatekeys: %w", err)
-		}
-	}
-
-	sshPort, err := getFreeTcpPort()
-	if err != nil {
-		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
-	}
-
-	err = runBootcVM(vmDir, sshPort, vmConfig.User, vmConfig.SshIdentity, injectSshKey, ciData, ciPort)
+	err = runBootcVM(vmDir, sshPort, vmConfig.User, pubkey, ciData, ciPort)
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}
 
 	// write down the config file
-	bcConfig := BcVmConfig{SshPort: sshPort, SshIdentity: vmConfig.SshIdentity}
+	bcConfig := BcVmConfig{SshPort: sshPort, SshIdentity: privkey}
 	bcConfigMsh, err := json.Marshal(bcConfig)
 	if err != nil {
 		return fmt.Errorf("marshalling: %w", err)
@@ -171,7 +129,7 @@ func boot(flags *cobra.Command, args []string) error {
 
 		// ssh into it
 		cmd := make([]string, 0)
-		err = CommonSSH(vmConfig.User, vmConfig.SshIdentity, imageName, sshPort, cmd)
+		err = CommonSSH(vmConfig.User, privkey, imageName, sshPort, cmd)
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
 		}
@@ -260,7 +218,7 @@ func killVM(vmDir string) error {
 	return process.Signal(os.Interrupt)
 }
 
-func runBootcVM(vmDir string, sshPort int, user, sshIdentity string, injectKey, ciData bool, ciPort int) error {
+func runBootcVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciPort int) error {
 	var args []string
 	args = append(args, "-accel", "kvm", "-cpu", "host")
 	args = append(args, "-m", "2G")
@@ -288,7 +246,7 @@ func runBootcVM(vmDir string, sshPort int, user, sshIdentity string, injectKey, 
 		}
 	}
 
-	if injectKey {
+	if sshIdentity != "" {
 		smbiosCmd, err := oemString(user, sshIdentity)
 		if err != nil {
 			return err
