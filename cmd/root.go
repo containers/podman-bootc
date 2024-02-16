@@ -3,14 +3,29 @@ package cmd
 import (
 	"os"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:   "bootc",
-	Short: "Run bootable containers as a virtual machine",
-	Long:  "Run bootable containers as a virtual machine",
+	Use:               "bootc",
+	Short:             "Run bootable containers as a virtual machine",
+	Long:              "Run bootable containers as a virtual machine",
+	PersistentPreRunE: preExec,
+}
+
+var rootLogLevel string
+
+func preExec(cmd *cobra.Command, args []string) error {
+	if rootLogLevel != "" {
+		level, err := logrus.ParseLevel(rootLogLevel)
+		if err != nil {
+			return err
+		}
+		logrus.SetLevel(level)
+	}
+	return nil
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -23,13 +38,6 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.osc.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	logrus.SetLevel(logrus.WarnLevel)
+	RootCmd.PersistentFlags().StringVarP(&rootLogLevel, "log-level", "", "", "Set log level")
 }

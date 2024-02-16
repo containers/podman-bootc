@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	streamarch "github.com/coreos/stream-metadata-go/arch"
+	"github.com/sirupsen/logrus"
 
 	"podmanbootc/pkg/config"
 	"podmanbootc/pkg/smbios"
@@ -73,6 +74,7 @@ func RunVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciP
 
 	cmd := createQemuCommand()
 	cmd.Args = append(cmd.Args, args...)
+	logrus.Debugf("Executing: %v", cmd.Args)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Start()
