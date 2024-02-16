@@ -38,6 +38,7 @@ func RunVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciP
 	args = append(args, "-cpu", "host")
 	args = append(args, "-m", "2G")
 	args = append(args, "-smp", "2")
+	args = append(args, "-snapshot")
 	nicCmd := fmt.Sprintf("user,model=virtio-net-pci,hostfwd=tcp::%d-:22", sshPort)
 	args = append(args, "-nic", nicCmd)
 	//args = append(args, "-nographic")
