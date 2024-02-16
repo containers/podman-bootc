@@ -25,6 +25,9 @@ func preExec(cmd *cobra.Command, args []string) error {
 		}
 		logrus.SetLevel(level)
 	}
+	if err := InitOSCDirs(); err != nil {
+		return err
+	}
 	return nil
 }
 

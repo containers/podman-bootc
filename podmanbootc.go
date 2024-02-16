@@ -3,10 +3,6 @@ package main
 import "podmanbootc/cmd"
 
 func main() {
-	if err := cmd.InitOSCDirs(); err != nil {
-		panic(err)
-	}
-
 	cmd.Execute()
 }
 
