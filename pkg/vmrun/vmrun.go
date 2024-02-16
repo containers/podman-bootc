@@ -5,13 +5,37 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+
+	streamarch "github.com/coreos/stream-metadata-go/arch"
+
 	"podmanbootc/pkg/config"
 	"podmanbootc/pkg/smbios"
 )
 
+func createQemuCommand() *exec.Cmd {
+	var path string
+	args := []string{}
+	podmanqemuPath := "/opt/podman/qemu"
+	if runtime.GOOS == "darwin" {
+		path = podmanqemuPath + "/bin/qemu-system-aarch64"
+		args = append(args,
+			"-accel", "hvf",
+			"-cpu", "host",
+			"-M", "virt,highmem=on",
+			"-drive", "file="+podmanqemuPath+"/share/qemu/edk2-aarch64-code.fd"+",if=pflash,format=raw,readonly=on",
+		)
+	} else {
+		arch := streamarch.CurrentRpmArch()
+		path = "qemu-system-" + arch
+		args = append(args, "-accel", "kvm")
+	}
+	return exec.Command(path, args...)
+}
+
 func RunVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciPort int) error {
 	var args []string
-	args = append(args, "-accel", "kvm", "-cpu", "host")
+	args = append(args, "-cpu", "host")
 	args = append(args, "-m", "2G")
 	args = append(args, "-smp", "2")
 	nicCmd := fmt.Sprintf("user,model=virtio-net-pci,hostfwd=tcp::%d-:22", sshPort)
@@ -46,7 +70,8 @@ func RunVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciP
 		args = append(args, "-smbios", smbiosCmd)
 	}
 
-	cmd := exec.Command("qemu-system-x86_64", args...)
+	cmd := createQemuCommand()
+	cmd.Args = append(cmd.Args, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Start()
