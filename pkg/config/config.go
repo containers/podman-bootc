@@ -13,6 +13,7 @@ const (
 	netInstDir = cacheDir + "/netinst"
 
 	BootcDiskImage = "disk.img"
+	BootcCiDataIso = "cidata.iso"
 )
 
 var (

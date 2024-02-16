@@ -52,7 +52,7 @@ func getPath(option string) string {
 
 func createCiDataIso(id, inDir string) error {
 	vmDir := filepath.Join(config.CacheDir, id)
-	isoOutFile := filepath.Join(vmDir, BootcCiDataIso)
+	isoOutFile := filepath.Join(vmDir, config.BootcCiDataIso)
 
 	var args []string
 	args = append(args, "-output", isoOutFile)
