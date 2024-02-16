@@ -5,9 +5,7 @@ go 1.19
 require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/spf13/cobra v1.8.0
-)
-
-require (
+	github.com/coreos/stream-metadata-go v0.4.4
 	github.com/adrg/xdg v0.4.0
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.9.3
