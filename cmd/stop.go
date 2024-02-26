@@ -2,6 +2,10 @@ package cmd
 
 import (
 	"fmt"
+
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/ssh"
+
 	"github.com/spf13/cobra"
 )
 
@@ -26,11 +30,11 @@ func stopVm(_ *cobra.Command, args []string) {
 
 func doStopVm(id string) error {
 
-	cfg, err := loadConfig(id)
+	cfg, err := config.LoadConfig(id)
 	if err != nil {
 		return err
 	}
 
 	poweroff := []string{"poweroff"}
-	return CommonSSH("root", cfg.SshIdentity, id, cfg.SshPort, poweroff)
+	return ssh.CommonSSH("root", cfg.SshIdentity, id, cfg.SshPort, poweroff)
 }

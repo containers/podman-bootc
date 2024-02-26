@@ -10,13 +10,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/cobra"
-
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/disk"
 	"podman-bootc/pkg/podman"
+	"podman-bootc/pkg/ssh"
+	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vmrun"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/spf13/cobra"
 )
 
 type osVmConfig struct {
@@ -86,7 +88,7 @@ func boot(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("getting podman ssh")
 	}
 
-	sshPort, err := getFreeTcpPort()
+	sshPort, err := utils.GetFreeLocalTcpPort()
 	if err != nil {
 		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
 	}
@@ -107,12 +109,12 @@ func boot(flags *cobra.Command, args []string) error {
 	}
 
 	// write down the config file
-	bcConfig := BcVmConfig{SshPort: sshPort, SshIdentity: privkey}
+	bcConfig := config.BcVmConfig{SshPort: sshPort, SshIdentity: privkey}
 	bcConfigMsh, err := json.Marshal(bcConfig)
 	if err != nil {
 		return fmt.Errorf("marshalling: %w", err)
 	}
-	cfgFile := filepath.Join(vmDir, BootcCfgFile)
+	cfgFile := filepath.Join(vmDir, config.CfgFile)
 	err = os.WriteFile(cfgFile, bcConfigMsh, 0660)
 	if err != nil {
 		return fmt.Errorf("write cfg file: %w", err)
@@ -128,7 +130,7 @@ func boot(flags *cobra.Command, args []string) error {
 
 		// ssh into it
 		cmd := make([]string, 0)
-		err = CommonSSH(vmConfig.User, privkey, imageName, sshPort, cmd)
+		err = ssh.CommonSSH(vmConfig.User, privkey, imageName, sshPort, cmd)
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
 		}
@@ -159,9 +161,9 @@ func waitForVM(vmDir string, port int) error {
 		return err
 	}
 
-	vmPidFile := filepath.Join(vmDir, runPidFile)
+	vmPidFile := filepath.Join(vmDir, config.RunPidFile)
 	for {
-		exists, err := fileExists(vmPidFile)
+		exists, err := utils.FileExists(vmPidFile)
 		if err != nil {
 			return err
 		}
@@ -203,8 +205,8 @@ func portIsOpen(port int) (bool, error) {
 }
 
 func killVM(vmDir string) error {
-	vmPidFile := filepath.Join(vmDir, runPidFile)
-	pid, err := readPidFile(vmPidFile)
+	vmPidFile := filepath.Join(vmDir, config.RunPidFile)
+	pid, err := utils.ReadPidFile(vmPidFile)
 	if err != nil {
 		return err
 	}

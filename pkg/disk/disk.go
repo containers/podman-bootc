@@ -65,7 +65,7 @@ func InstallImage(vmdir, containerImage, imageDigest string) error {
 	if err := unix.Fsetxattr(int(temporaryDisk.Fd()), imageMetaXattr, buf, 0); err != nil {
 		return fmt.Errorf("failed to set xattr: %w", err)
 	}
-	diskPath := filepath.Join(vmdir, config.BootcDiskImage)
+	diskPath := filepath.Join(vmdir, config.DiskImage)
 
 	if err := os.Rename(temporaryDisk.Name(), diskPath); err != nil {
 		return fmt.Errorf("failed to rename to %s: %w", diskPath, err)
@@ -76,7 +76,7 @@ func InstallImage(vmdir, containerImage, imageDigest string) error {
 }
 
 func GetOrInstallImage(vmdir, containerImage, imageDigest string) error {
-	diskPath := filepath.Join(vmdir, config.BootcDiskImage)
+	diskPath := filepath.Join(vmdir, config.DiskImage)
 	f, err := os.Open(diskPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {

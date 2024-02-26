@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/utils"
+
+	"github.com/spf13/cobra"
 )
 
 // listCmd represents the hello command
@@ -52,10 +54,10 @@ func collectVmInfo() (map[string]string, error) {
 
 	for _, f := range files {
 		if f.IsDir() && f.Name() != "machine" && f.Name() != "netinst" {
-			vmPidFile := filepath.Join(config.CacheDir, f.Name(), runPidFile)
-			pid, _ := readPidFile(vmPidFile)
+			vmPidFile := filepath.Join(config.CacheDir, f.Name(), config.RunPidFile)
+			pid, _ := utils.ReadPidFile(vmPidFile)
 			pidRep := "-"
-			if pid != -1 && isPidAlive(pid) {
+			if pid != -1 && utils.IsProcessAlive(pid) {
 				pidRep = strconv.Itoa(pid)
 			}
 			vmList[f.Name()[:12]] = pidRep

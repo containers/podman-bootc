@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/utils"
 )
 
 func SetCloudInit(id, option string) (int, error) {
@@ -21,7 +22,7 @@ func SetCloudInit(id, option string) (int, error) {
 	transport := getTransport(option)
 	path := getPath(option)
 
-	if transport == BootcCiDefaultTransport {
+	if transport == config.CiDefaultTransport {
 		return -1, createCiDataIso(id, path)
 	}
 
@@ -40,7 +41,7 @@ func getTransport(option string) string {
 	if strings.Contains(option, ":") {
 		return option[:strings.IndexByte(option, ':')]
 	}
-	return BootcCiDefaultTransport
+	return config.CiDefaultTransport
 }
 
 func getPath(option string) string {
@@ -52,7 +53,7 @@ func getPath(option string) string {
 
 func createCiDataIso(id, inDir string) error {
 	vmDir := filepath.Join(config.CacheDir, id)
-	isoOutFile := filepath.Join(vmDir, config.BootcCiDataIso)
+	isoOutFile := filepath.Join(vmDir, config.CiDataIso)
 
 	var args []string
 	args = append(args, "-output", isoOutFile)
@@ -69,7 +70,7 @@ func createCiDataIso(id, inDir string) error {
 }
 
 func httpServer(path string) (int, error) {
-	httpPort, err := getFreeTcpPort()
+	httpPort, err := utils.GetFreeLocalTcpPort()
 	if err != nil {
 		return -1, err
 	}

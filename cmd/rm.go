@@ -2,9 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
+
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/utils"
+
+	"github.com/spf13/cobra"
 )
 
 var rmCmd = &cobra.Command{
@@ -28,14 +32,14 @@ func removeVmCmd(_ *cobra.Command, args []string) {
 }
 
 func Remove(id string) error {
-	vmDir, err := bootcImagePath(id)
+	vmDir, err := config.BootcImagePath(id)
 	if err != nil {
 		return err
 	}
 
-	vmPidFile := filepath.Join(vmDir, runPidFile)
-	pid, _ := readPidFile(vmPidFile)
-	if pid != -1 && isPidAlive(pid) {
+	vmPidFile := filepath.Join(vmDir, config.RunPidFile)
+	pid, _ := utils.ReadPidFile(vmPidFile)
+	if pid != -1 && utils.IsProcessAlive(pid) {
 		return fmt.Errorf("bootc container '%s' must be stopped first", id)
 	}
 

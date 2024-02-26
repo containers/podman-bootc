@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"runtime"
 
-	streamarch "github.com/coreos/stream-metadata-go/arch"
-	"github.com/sirupsen/logrus"
-
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/smbios"
+
+	streamarch "github.com/coreos/stream-metadata-go/arch"
+	"github.com/sirupsen/logrus"
 )
 
 func createQemuCommand() *exec.Cmd {
@@ -47,7 +47,7 @@ func RunVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciP
 	vmPidFile := filepath.Join(vmDir, "run.pid")
 	args = append(args, "-pidfile", vmPidFile)
 
-	vmDiskImage := filepath.Join(vmDir, config.BootcDiskImage)
+	vmDiskImage := filepath.Join(vmDir, config.DiskImage)
 	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
 	if ciData {
@@ -58,7 +58,7 @@ func RunVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciP
 			args = append(args, "-smbios", smbiosCmd)
 		} else {
 			// cdrom cloud init data transport
-			ciDataIso := filepath.Join(vmDir, config.BootcCiDataIso)
+			ciDataIso := filepath.Join(vmDir, config.CiDataIso)
 			args = append(args, "-cdrom", ciDataIso)
 		}
 	}
