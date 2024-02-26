@@ -1,14 +1,9 @@
 package cmd
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
-	"strconv"
-	"time"
 
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/disk"
@@ -17,12 +12,10 @@ import (
 	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 )
 
 type osVmConfig struct {
-	Remote          bool
 	User            string
 	CloudInitDir    string
 	KsFile          string
@@ -47,7 +40,6 @@ var (
 
 func init() {
 	RootCmd.AddCommand(runCmd)
-	runCmd.Flags().BoolVarP(&vmConfig.Remote, "remote", "r", false, "--remote")
 	runCmd.Flags().StringVarP(&vmConfig.User, "user", "u", "root", "--user <user name> (default: root)")
 
 	runCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
@@ -58,9 +50,9 @@ func init() {
 }
 
 func boot(flags *cobra.Command, args []string) error {
-	imageName := args[0]
+	idOrName := args[0]
 
-	imageDigest, err := podman.GetImage(imageName)
+	imageDigest, err := podman.GetImage(idOrName)
 	if err != nil {
 		return err
 	}
@@ -74,23 +66,14 @@ func boot(flags *cobra.Command, args []string) error {
 	}
 
 	// install
-	start := time.Now()
-	if err := disk.GetOrInstallImage(vmDir, imageName, imageDigest); err != nil {
+	if err := disk.GetOrInstallImage(vmDir, idOrName, imageDigest); err != nil {
 		return fmt.Errorf("installImage: %w", err)
 	}
-	elapsed := time.Since(start)
-	fmt.Println("installImage elapsed: ", elapsed)
 
 	// run the new image
-
 	privkey, pubkey, err := podman.MachineSSHKey()
 	if err != nil {
 		return fmt.Errorf("getting podman ssh")
-	}
-
-	sshPort, err := utils.GetFreeLocalTcpPort()
-	if err != nil {
-		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
 	}
 
 	// cloud-init required?
@@ -103,34 +86,32 @@ func boot(flags *cobra.Command, args []string) error {
 		}
 	}
 
-	err = vm.RunVM(vmDir, sshPort, vmConfig.User, pubkey, ciData, ciPort)
+	sshPort, err := utils.GetFreeLocalTcpPort()
+	if err != nil {
+		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
+	}
+
+	err = vm.Run(vmDir, sshPort, vmConfig.User, pubkey, ciData, ciPort)
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}
 
 	// write down the config file
-	bcConfig := config.BcVmConfig{SshPort: sshPort, SshIdentity: privkey}
-	bcConfigMsh, err := json.Marshal(bcConfig)
-	if err != nil {
-		return fmt.Errorf("marshalling: %w", err)
-	}
-	cfgFile := filepath.Join(vmDir, config.CfgFile)
-	err = os.WriteFile(cfgFile, bcConfigMsh, 0660)
-	if err != nil {
-		return fmt.Errorf("write cfg file: %w", err)
+	if err := config.WriteConfig(vmDir, sshPort, privkey); err != nil {
+		return err
 	}
 
 	if !vmConfig.Background {
 		// wait for VM
 		//time.Sleep(5 * time.Second) // just for now
-		err = waitForVM(vmDir, sshPort)
+		err = vm.WaitSshReady(vmDir, sshPort)
 		if err != nil {
-			return fmt.Errorf("waitForVM: %w", err)
+			return fmt.Errorf("WaitSshReady: %w", err)
 		}
 
 		// ssh into it
 		cmd := make([]string, 0)
-		err = ssh.CommonSSH(vmConfig.User, privkey, imageName, sshPort, cmd)
+		err = ssh.CommonSSH(vmConfig.User, privkey, idOrName, sshPort, cmd)
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
 		}
@@ -139,7 +120,7 @@ func boot(flags *cobra.Command, args []string) error {
 			// stop the new VM
 			//poweroff := []string{"poweroff"}
 			//err = CommonSSH("root", DefaultIdentity, name, sshPort, poweroff)
-			err = killVM(vmDir)
+			err = vm.Kill(vmDir)
 			if err != nil {
 				return fmt.Errorf("poweroff: %w", err)
 			}
@@ -147,74 +128,4 @@ func boot(flags *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-func waitForVM(vmDir string, port int) error {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return err
-	}
-	defer watcher.Close()
-
-	err = watcher.Add(vmDir)
-	if err != nil {
-		return err
-	}
-
-	vmPidFile := filepath.Join(vmDir, config.RunPidFile)
-	for {
-		exists, err := utils.FileExists(vmPidFile)
-		if err != nil {
-			return err
-		}
-
-		if exists {
-			break
-		}
-
-		select {
-		case <-watcher.Events:
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return errors.New("unknown error")
-			}
-			return err
-		}
-	}
-
-	for {
-		sshReady, err := portIsOpen(port)
-		if err != nil {
-			return err
-		}
-
-		if sshReady {
-			return nil
-		}
-	}
-}
-
-func portIsOpen(port int) (bool, error) {
-	timeout := time.Second
-	conn, _ := net.DialTimeout("tcp", net.JoinHostPort("localhost", strconv.Itoa(port)), timeout)
-	if conn != nil {
-		defer conn.Close()
-		return true, nil
-	}
-	return false, nil
-}
-
-func killVM(vmDir string) error {
-	vmPidFile := filepath.Join(vmDir, config.RunPidFile)
-	pid, err := utils.ReadPidFile(vmPidFile)
-	if err != nil {
-		return err
-	}
-
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return err
-	}
-
-	return process.Signal(os.Interrupt)
 }

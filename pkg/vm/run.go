@@ -1,15 +1,19 @@
 package vm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 
-	streamarch "github.com/coreos/stream-metadata-go/arch"
-	"github.com/sirupsen/logrus"
 	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/utils"
+
+	streamarch "github.com/coreos/stream-metadata-go/arch"
+	"github.com/fsnotify/fsnotify"
+	"github.com/sirupsen/logrus"
 )
 
 func createQemuCommand() *exec.Cmd {
@@ -32,7 +36,7 @@ func createQemuCommand() *exec.Cmd {
 	return exec.Command(path, args...)
 }
 
-func RunVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciPort int) error {
+func Run(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciPort int) error {
 	var args []string
 	args = append(args, "-cpu", "host")
 	args = append(args, "-m", "2G")
@@ -76,4 +80,59 @@ func RunVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciP
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Start()
+}
+
+func WaitSshReady(vmDir string, port int) error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+	defer watcher.Close()
+
+	err = watcher.Add(vmDir)
+	if err != nil {
+		return fmt.Errorf("add watcher: %w", err)
+	}
+
+	vmPidFile := filepath.Join(vmDir, config.RunPidFile)
+	for {
+		exists, err := utils.FileExists(vmPidFile)
+		if err != nil {
+			return fmt.Errorf("check for file: %w", err)
+		}
+
+		if exists {
+			break
+		}
+
+		select {
+		case <-watcher.Events:
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return errors.New("unknown error")
+			}
+			return fmt.Errorf("watcher event: %w", err)
+		}
+	}
+
+	for {
+		if utils.IsPortOpen(port) {
+			return nil
+		}
+	}
+}
+
+func Kill(vmDir string) error {
+	vmPidFile := filepath.Join(vmDir, config.RunPidFile)
+	pid, err := utils.ReadPidFile(vmPidFile)
+	if err != nil {
+		return fmt.Errorf("reading pid file: %w", err)
+	}
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("finding process: %w", err)
+	}
+
+	return process.Signal(os.Interrupt)
 }

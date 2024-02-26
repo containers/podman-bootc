@@ -100,3 +100,17 @@ func LoadConfig(id string) (*BcVmConfig, error) {
 
 	return cfg, nil
 }
+
+func WriteConfig(vmDir string, sshPort int, sshIdentity string) error {
+	bcConfig := BcVmConfig{SshPort: sshPort, SshIdentity: sshIdentity}
+	bcConfigMsh, err := json.Marshal(bcConfig)
+	if err != nil {
+		return fmt.Errorf("marshal config data: %w", err)
+	}
+	cfgFile := filepath.Join(vmDir, CfgFile)
+	err = os.WriteFile(cfgFile, bcConfigMsh, 0660)
+	if err != nil {
+		return fmt.Errorf("write config file: %w", err)
+	}
+	return nil
+}
