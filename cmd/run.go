@@ -54,15 +54,13 @@ func init() {
 func doBoot(flags *cobra.Command, args []string) error {
 	idOrName := args[0]
 
-	imageDigest, err := podman.GetImage(idOrName)
+	imageDigest, imageId, err := podman.GetOciImage(idOrName)
 	if err != nil {
 		return err
 	}
 
-	// Create VM cache dir; for now we have a single global one, so if
-	// you boot a different container image, then any previous disk
-	// images are GC'd.
-	vmDir := filepath.Join(config.CacheDir)
+	// Create VM cache dir; one per oci bootc image
+	vmDir := filepath.Join(config.CacheDir, imageId)
 	if err := os.MkdirAll(vmDir, os.ModePerm); err != nil {
 		return fmt.Errorf("MkdirAll: %w", err)
 	}
