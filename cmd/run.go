@@ -76,7 +76,7 @@ func doBoot(flags *cobra.Command, args []string) error {
 	logrus.Debugf("installImage elapsed: %v", elapsed)
 
 	// run the new image
-	privkey, pubkey, err := podman.MachineSSHKey()
+	privkey, _, err := podman.MachineSSHKey()
 	if err != nil {
 		return fmt.Errorf("getting podman ssh")
 	}
@@ -96,7 +96,7 @@ func doBoot(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
 	}
 
-	err = vm.Run(vmDir, sshPort, vmConfig.User, pubkey, ciData, ciPort)
+	err = vm.Run(vmDir, sshPort, vmConfig.User, privkey, ciData, ciPort)
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}

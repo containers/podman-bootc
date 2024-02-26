@@ -13,8 +13,8 @@ import (
 
 const (
 	projectName        = "podman-bootc"
-	configDir          = ".config/osc"
-	cacheDir           = ".cache/osc"
+	configDir          = ".config"
+	cacheDir           = ".cache"
 	RunPidFile         = "run.pid"
 	OciArchiveOutput   = "image-archive.tar"
 	DiskImage          = "disk.raw"
