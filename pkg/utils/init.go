@@ -14,7 +14,7 @@ func InitOSCDirs() error {
 		return err
 	}
 
-	if err := os.MkdirAll(config.RunDir(), os.ModePerm); err != nil {
+	if err := os.MkdirAll(config.RunDir, os.ModePerm); err != nil {
 		return err
 	}
 

@@ -12,33 +12,27 @@ import (
 )
 
 const (
-	projectName = "podman-bootc"
-	configDir   = ".config/osc"
-	cacheDir    = ".cache/osc"
-
-	RunPidFile       = "run.pid"
-	OciArchiveOutput = "image-archive.tar"
-
+	projectName        = "podman-bootc"
+	configDir          = ".config/osc"
+	cacheDir           = ".cache/osc"
+	RunPidFile         = "run.pid"
+	OciArchiveOutput   = "image-archive.tar"
 	DiskImage          = "disk.raw"
 	CiDataIso          = "cidata.iso"
 	CiDefaultTransport = "cdrom"
-
-	CfgFile = "bc.cfg"
+	SshKeyFile         = "sshkey"
+	CfgFile            = "bc.cfg"
 )
 
-// VM files
-//const (
-//	runConfigFile  = "run.json"
-//	installPidFile = "install.pid"
-//	configFile     = "vm.json"
-//	diskImage      = "disk.qcow2"
-//
-//	BootcOciArchive  = "image-archive.tar"
-//	BootcOciDir      = "image-dir"
-//	BootcCiDataDir   = "cidata"
-//	BootcSshKeyFile  = "sshkey"
-//	BootcSshPortFile = "sshport"
-//)
+var (
+	User, _         = user.Current()
+	UserSshDir      = filepath.Join(User.HomeDir, ".ssh")
+	ConfigDir       = filepath.Join(User.HomeDir, configDir)
+	CacheDir        = filepath.Join(User.HomeDir, cacheDir, projectName)
+	RunDir          = filepath.Join(xdg.RuntimeDir, projectName, "run")
+	MachineCacheDir = filepath.Join("/home/core", cacheDir, projectName)
+	DefaultIdentity = filepath.Join(UserSshDir, "id_rsa")
+)
 
 // VM Status
 const (
@@ -62,19 +56,9 @@ type VmConfig struct {
 	SshPriKey  string `json:"SshPriKey"`
 }
 
-var (
-	User, _   = user.Current()
-	SshDir    = filepath.Join(User.HomeDir, ".ssh")
-	ConfigDir = filepath.Join(User.HomeDir, configDir)
-
-	CacheDir        = filepath.Join(User.HomeDir, cacheDir)
-	MachineImage    = filepath.Join(CacheDir, "machine/image.qcow2")
-	MachineIdentity = filepath.Join(User.HomeDir, ".ssh", "podman-machine-default")
-	DefaultIdentity = filepath.Join(User.HomeDir, ".ssh", "id_rsa")
-)
-
-func RunDir() string {
-	return filepath.Join(xdg.RuntimeDir, projectName, "run")
+type BcVmConfig struct {
+	SshPort     int    `json:"SshPort"`
+	SshIdentity string `json:"SshPriKey"`
 }
 
 func BootcImagePath(id string) (string, error) {
@@ -115,9 +99,4 @@ func LoadConfig(id string) (*BcVmConfig, error) {
 	}
 
 	return cfg, nil
-}
-
-type BcVmConfig struct {
-	SshPort     int    `json:"SshPort"`
-	SshIdentity string `json:"SshPriKey"`
 }
