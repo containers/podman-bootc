@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/disk"
@@ -12,6 +13,7 @@ import (
 	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -66,9 +68,12 @@ func doBoot(flags *cobra.Command, args []string) error {
 	}
 
 	// install
+	start := time.Now()
 	if err := disk.GetOrInstallImage(vmDir, idOrName, imageDigest); err != nil {
 		return fmt.Errorf("installImage: %w", err)
 	}
+	elapsed := time.Since(start)
+	logrus.Debugf("installImage elapsed: %v", elapsed)
 
 	// run the new image
 	privkey, pubkey, err := podman.MachineSSHKey()
