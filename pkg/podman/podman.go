@@ -27,25 +27,28 @@ func Run(args []string) error {
 	return c.Run()
 }
 
-// GetImage fetches the image if not present, and returns its digest
-func GetImage(imageName string) (string, error) {
+// GetOciImage fetches the image if not present, and returns its digest
+func GetOciImage(idOrName string) (string, string, error) {
 	// Run an inspect to see if the image is present, otherwise pull.
 	// TODO: Add podman pull --if-not-present or so.
-	c := NewCommand([]string{"image", "inspect", "-f", "{{.Digest}}", imageName})
-	if err := c.Run(); err != nil {
+	digest, err := inspect(idOrName, "{{.Digest}}", true)
+	if err != nil {
 		logrus.Debugf("Inspect failed: %v", err)
-		if err := Run([]string{"pull", imageName}); err != nil {
-			return "", fmt.Errorf("pulling image: %w", err)
+		if err := Run([]string{"pull", idOrName}); err != nil {
+			return "", "", fmt.Errorf("pulling image: %w", err)
 		}
 	}
-	c = NewCommand([]string{"image", "inspect", "-f", "{{.Digest}}", imageName})
-	buf := &bytes.Buffer{}
-	c.Stdout = buf
-	c.Stderr = os.Stderr
-	if err := c.Run(); err != nil {
-		return "", fmt.Errorf("failed to inspect %s: %w", imageName, err)
+
+	digest, err = inspect(idOrName, "{{.Digest}}", false)
+	if err != nil {
+		return "", "", err
 	}
-	return strings.TrimSpace(buf.String()), nil
+
+	id, err := inspect(idOrName, "{{.Id}}", false)
+	if err != nil {
+		return "", "", err
+	}
+	return digest, id, nil
 }
 
 // Get the SSH key podman machine generates by default
@@ -57,4 +60,19 @@ func MachineSSHKey() (string, string, error) {
 	privkey := filepath.Join(homedir, ".ssh/podman-machine-default")
 	pubkey := privkey + ".pub"
 	return privkey, pubkey, nil
+}
+
+func inspect(idOrName, format string, quiet bool) (string, error) {
+	c := NewCommand([]string{"image", "inspect", "-f", format, idOrName})
+	buf := &bytes.Buffer{}
+	c.Stdout = buf
+	if !quiet {
+		c.Stderr = os.Stderr
+	}
+
+	if err := c.Run(); err != nil {
+		return "", fmt.Errorf("failed to inspect %s: %w", idOrName, err)
+	}
+
+	return strings.TrimSpace(buf.String()), nil
 }
