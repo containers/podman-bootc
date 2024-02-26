@@ -1,7 +1,8 @@
-package cmd
+package vm
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -29,7 +30,7 @@ func SetCloudInit(id, option string) (int, error) {
 	if transport == "imds" {
 		port, err := httpServer(path)
 		if err != nil {
-			return -1, err
+			return -1, fmt.Errorf("setting up cloud init http server: %w", err)
 		}
 		return port, nil
 	}
@@ -55,8 +56,7 @@ func createCiDataIso(id, inDir string) error {
 	vmDir := filepath.Join(config.CacheDir, id)
 	isoOutFile := filepath.Join(vmDir, config.CiDataIso)
 
-	var args []string
-	args = append(args, "-output", isoOutFile)
+	args := []string{"-output", isoOutFile}
 	args = append(args, "-volid", "cidata", "-joliet", "-rock", "-partition_cyl_align", "on")
 	args = append(args, inDir)
 

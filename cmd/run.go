@@ -15,7 +15,7 @@ import (
 	"podman-bootc/pkg/podman"
 	"podman-bootc/pkg/ssh"
 	"podman-bootc/pkg/utils"
-	"podman-bootc/pkg/vmrun"
+	"podman-bootc/pkg/vm"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
@@ -97,13 +97,13 @@ func boot(flags *cobra.Command, args []string) error {
 	ciPort := -1 // for http transport
 	ciData := flags.Flags().Changed("cloudinit")
 	if ciData {
-		ciPort, err = SetCloudInit(imageDigest, vmConfig.CloudInitDir)
+		ciPort, err = vm.SetCloudInit(imageDigest, vmConfig.CloudInitDir)
 		if err != nil {
 			return fmt.Errorf("setting up cloud init failed: %w", err)
 		}
 	}
 
-	err = vmrun.RunVM(vmDir, sshPort, vmConfig.User, pubkey, ciData, ciPort)
+	err = vm.RunVM(vmDir, sshPort, vmConfig.User, pubkey, ciData, ciPort)
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}

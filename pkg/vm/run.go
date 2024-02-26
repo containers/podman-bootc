@@ -1,4 +1,4 @@
-package vmrun
+package vm
 
 import (
 	"fmt"
@@ -7,11 +7,9 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/smbios"
-
 	streamarch "github.com/coreos/stream-metadata-go/arch"
 	"github.com/sirupsen/logrus"
+	"podman-bootc/pkg/config"
 )
 
 func createQemuCommand() *exec.Cmd {
@@ -64,7 +62,7 @@ func RunVM(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciP
 	}
 
 	if sshIdentity != "" {
-		smbiosCmd, err := smbios.OemString(user, sshIdentity)
+		smbiosCmd, err := OemString(user, sshIdentity)
 		if err != nil {
 			return err
 		}
