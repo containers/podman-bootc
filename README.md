@@ -13,10 +13,7 @@ in alignment with the <https://github.com/containers/bootc> project.
 
 Requirements:
 
-- qemu-img
-- qemu-system-x86_64
-- virtiofsd
-- curl
+- qemu-system-x86_64/qemu-system-aarch64
 - xorriso/osirrox
 - golang
 
@@ -31,5 +28,5 @@ make
 The core command right now is:
 
 ```shell
-podmanbootc run <imagename>
+podman-bootc run <imagename>
 ```
