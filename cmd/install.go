@@ -20,7 +20,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"podmanbootc/pkg/config"
+	"podman-bootc/pkg/config"
 )
 
 type VmInstallConfig struct {

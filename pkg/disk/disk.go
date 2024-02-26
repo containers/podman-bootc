@@ -9,8 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	"podmanbootc/pkg/config"
-	"podmanbootc/pkg/podman"
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/podman"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"

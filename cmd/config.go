@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"podmanbootc/pkg/config"
+	"podman-bootc/pkg/config"
 )
 
 func InitOSCDirs() error {

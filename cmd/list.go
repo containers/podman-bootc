@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"podmanbootc/pkg/config"
+	"podman-bootc/pkg/config"
 )
 
 // listCmd represents the hello command

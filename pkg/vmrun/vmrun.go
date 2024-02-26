@@ -10,8 +10,8 @@ import (
 	streamarch "github.com/coreos/stream-metadata-go/arch"
 	"github.com/sirupsen/logrus"
 
-	"podmanbootc/pkg/config"
-	"podmanbootc/pkg/smbios"
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/smbios"
 )
 
 func createQemuCommand() *exec.Cmd {

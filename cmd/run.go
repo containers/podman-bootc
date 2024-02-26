@@ -13,10 +13,10 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 
-	"podmanbootc/pkg/config"
-	"podmanbootc/pkg/disk"
-	"podmanbootc/pkg/podman"
-	"podmanbootc/pkg/vmrun"
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/disk"
+	"podman-bootc/pkg/podman"
+	"podman-bootc/pkg/vmrun"
 )
 
 type osVmConfig struct {

@@ -1,4 +1,4 @@
-module podmanbootc
+module podman-bootc
 
 go 1.19
 

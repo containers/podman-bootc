@@ -1,2 +1,2 @@
 all:
-	go build $(GOOPTS) podmanbootc
+	go build $(GOOPTS) podman-bootc
