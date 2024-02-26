@@ -113,13 +113,14 @@ func doBoot(flags *cobra.Command, args []string) error {
 		}
 
 		// ssh into it
-		cmd := make([]string, 0)
+		cmd := args[1:]
 		err = ssh.CommonSSH(vmConfig.User, privkey, idOrName, sshPort, cmd)
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
 		}
 
-		if vmConfig.RemoveVm {
+		// Always remove when executing a command
+		if vmConfig.RemoveVm || len(cmd) > 0 {
 			// stop the new VM
 			//poweroff := []string{"poweroff"}
 			//err = CommonSSH("root", DefaultIdentity, name, sshPort, poweroff)
