@@ -33,7 +33,7 @@ var (
 		Short:        "Run a bootc container as a VM",
 		Long:         "Run a bootc container as a VM",
 		Args:         cobra.MinimumNArgs(1),
-		RunE:         doBoot,
+		RunE:         doRun,
 		SilenceUsage: true,
 	}
 
@@ -51,7 +51,7 @@ func init() {
 
 }
 
-func doBoot(flags *cobra.Command, args []string) error {
+func doRun(flags *cobra.Command, args []string) error {
 	idOrName := args[0]
 
 	imageDigest, imageId, err := podman.GetOciImage(idOrName)
