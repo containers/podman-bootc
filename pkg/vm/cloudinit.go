@@ -1,7 +1,8 @@
-package cmd
+package vm
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,7 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"podmanbootc/pkg/config"
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/utils"
 )
 
 func SetCloudInit(id, option string) (int, error) {
@@ -21,14 +23,14 @@ func SetCloudInit(id, option string) (int, error) {
 	transport := getTransport(option)
 	path := getPath(option)
 
-	if transport == BootcCiDefaultTransport {
+	if transport == config.CiDefaultTransport {
 		return -1, createCiDataIso(id, path)
 	}
 
 	if transport == "imds" {
 		port, err := httpServer(path)
 		if err != nil {
-			return -1, err
+			return -1, fmt.Errorf("setting up cloud init http server: %w", err)
 		}
 		return port, nil
 	}
@@ -40,7 +42,7 @@ func getTransport(option string) string {
 	if strings.Contains(option, ":") {
 		return option[:strings.IndexByte(option, ':')]
 	}
-	return BootcCiDefaultTransport
+	return config.CiDefaultTransport
 }
 
 func getPath(option string) string {
@@ -52,10 +54,9 @@ func getPath(option string) string {
 
 func createCiDataIso(id, inDir string) error {
 	vmDir := filepath.Join(config.CacheDir, id)
-	isoOutFile := filepath.Join(vmDir, config.BootcCiDataIso)
+	isoOutFile := filepath.Join(vmDir, config.CiDataIso)
 
-	var args []string
-	args = append(args, "-output", isoOutFile)
+	args := []string{"-output", isoOutFile}
 	args = append(args, "-volid", "cidata", "-joliet", "-rock", "-partition_cyl_align", "on")
 	args = append(args, inDir)
 
@@ -69,7 +70,7 @@ func createCiDataIso(id, inDir string) error {
 }
 
 func httpServer(path string) (int, error) {
-	httpPort, err := getFreeTcpPort()
+	httpPort, err := utils.GetFreeLocalTcpPort()
 	if err != nil {
 		return -1, err
 	}

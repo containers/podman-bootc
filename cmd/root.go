@@ -3,13 +3,15 @@ package cmd
 import (
 	"os"
 
+	"podman-bootc/pkg/utils"
+
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:               "bootc",
+	Use:               "podman-bootc",
 	Short:             "Run bootable containers as a virtual machine",
 	Long:              "Run bootable containers as a virtual machine",
 	PersistentPreRunE: preExec,
@@ -25,7 +27,7 @@ func preExec(cmd *cobra.Command, args []string) error {
 		}
 		logrus.SetLevel(level)
 	}
-	if err := InitOSCDirs(); err != nil {
+	if err := utils.InitOSCDirs(); err != nil {
 		return err
 	}
 	return nil

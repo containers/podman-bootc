@@ -1,4 +1,4 @@
-package smbios
+package vm
 
 import (
 	"encoding/base64"
@@ -6,6 +6,15 @@ import (
 	"os"
 	"path/filepath"
 )
+
+func OemString(user, pubKeyFile string) (string, error) {
+	tmpFilesCmd, err := tmpFileInjectSshKeyEnc(user, pubKeyFile+".pub")
+	if err != nil {
+		return "", err
+	}
+	oemString := fmt.Sprintf("type=11,value=io.systemd.credential.binary:tmpfiles.extra=%s", tmpFilesCmd)
+	return oemString, nil
+}
 
 func tmpFileInjectSshKeyEnc(user, pubKeyFile string) (string, error) {
 	pubKey, err := os.ReadFile(pubKeyFile)
@@ -23,13 +32,4 @@ func tmpFileInjectSshKeyEnc(user, pubKeyFile string) (string, error) {
 
 	tmpFileCmdEnc := base64.StdEncoding.EncodeToString([]byte(tmpFileCmd))
 	return tmpFileCmdEnc, nil
-}
-
-func OemString(user, pubKeyFile string) (string, error) {
-	tmpFilesCmd, err := tmpFileInjectSshKeyEnc(user, pubKeyFile)
-	if err != nil {
-		return "", err
-	}
-	oemString := fmt.Sprintf("type=11,value=io.systemd.credential.binary:tmpfiles.extra=%s", tmpFilesCmd)
-	return oemString, nil
 }
