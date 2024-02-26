@@ -6,9 +6,11 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/adrg/xdg"
+	"github.com/containers/podman/v5/pkg/rootless"
 )
 
 const (
@@ -24,8 +26,20 @@ const (
 	CfgFile            = "bc.cfg"
 )
 
+//the podman library switches to the root user when imported
+//so we need to use rootless to get the correct user
+func getUser() (u *user.User) {
+	u, err := user.LookupId(strconv.Itoa(rootless.GetRootlessUID()))
+
+	if err != nil {
+		panic(err)
+	}
+
+	return u
+}
+
 var (
-	User, _         = user.Current()
+	User            = getUser()
 	UserSshDir      = filepath.Join(User.HomeDir, ".ssh")
 	ConfigDir       = filepath.Join(User.HomeDir, configDir)
 	CacheDir        = filepath.Join(User.HomeDir, cacheDir, projectName)

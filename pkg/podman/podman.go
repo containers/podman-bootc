@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	_ "github.com/containers/podman/v5/pkg/bindings"
 	"github.com/sirupsen/logrus"
 )
 
