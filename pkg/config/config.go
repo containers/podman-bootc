@@ -46,6 +46,8 @@ var (
 	RunDir          = filepath.Join(xdg.RuntimeDir, projectName, "run")
 	MachineCacheDir = filepath.Join("/home/core", cacheDir, projectName)
 	DefaultIdentity = filepath.Join(UserSshDir, "id_rsa")
+	MachineSshKeyPriv = filepath.Join(UserSshDir, "podman-machine-default")
+	MachineSshKeyPub  = filepath.Join(UserSshDir, "podman-machine-default.pub")
 )
 
 // VM Status
