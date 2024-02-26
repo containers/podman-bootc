@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,6 +54,9 @@ func init() {
 
 func doRun(flags *cobra.Command, args []string) error {
 	idOrName := args[0]
+	if !podman.IsDefaultMachineRunning() {
+		return errors.New("podman default machine not running: please execute 'podman machine init && podman machine start'")
+	}
 
 	imageDigest, imageId, err := podman.GetOciImage(idOrName)
 	if err != nil {
