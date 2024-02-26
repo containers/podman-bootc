@@ -17,21 +17,14 @@ var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List installed OS Containers",
 	Long:  "List installed OS Containers",
-	Run:   list,
+	RunE:  doList,
 }
 
 func init() {
 	RootCmd.AddCommand(listCmd)
 }
 
-func list(_ *cobra.Command, _ []string) {
-	err := doList()
-	if err != nil {
-		fmt.Println("Error: ", err)
-	}
-}
-
-func doList() error {
+func doList(_ *cobra.Command, _ []string) error {
 	vmList, err := collectVmInfo()
 	if err != nil {
 		return err
@@ -53,7 +46,7 @@ func collectVmInfo() (map[string]string, error) {
 	}
 
 	for _, f := range files {
-		if f.IsDir() && f.Name() != "machine" && f.Name() != "netinst" {
+		if f.IsDir() {
 			vmPidFile := filepath.Join(config.CacheDir, f.Name(), config.RunPidFile)
 			pid, _ := utils.ReadPidFile(vmPidFile)
 			pidRep := "-"

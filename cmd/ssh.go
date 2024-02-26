@@ -8,12 +8,11 @@ import (
 )
 
 var sshCmd = &cobra.Command{
-	Use:     "ssh <ID>",
-	Short:   "SSH into an existing OS Container machine",
-	Long:    "SSH into an existing OS Container machine",
-	Args:    cobra.MinimumNArgs(1),
-	Example: `podman bootc ssh 6c6c2fc015fe`,
-	RunE:    doSsh,
+	Use:   "ssh <ID>",
+	Short: "SSH into an existing OS Container machine",
+	Long:  "SSH into an existing OS Container machine",
+	Args:  cobra.MinimumNArgs(1),
+	RunE:  doSsh,
 }
 var sshUser string
 

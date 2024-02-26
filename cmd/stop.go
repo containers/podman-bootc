@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/ssh"
 
@@ -14,22 +12,15 @@ var stopCmd = &cobra.Command{
 	Short: "Stop an existing OS Container machine",
 	Long:  "Stop an existing OS Container machine",
 	Args:  cobra.ExactArgs(1),
-	Run:   stopVm,
+	RunE:  doStop,
 }
 
 func init() {
 	RootCmd.AddCommand(stopCmd)
 }
 
-func stopVm(_ *cobra.Command, args []string) {
-	err := doStopVm(args[0])
-	if err != nil {
-		fmt.Println("Error: ", err)
-	}
-}
-
-func doStopVm(id string) error {
-
+func doStop(_ *cobra.Command, args []string) error {
+	id := args[0]
 	cfg, err := config.LoadConfig(id)
 	if err != nil {
 		return err
