@@ -58,9 +58,9 @@ func doRun(flags *cobra.Command, args []string) error {
 		return errors.New("podman default machine not running: please execute 'podman machine init && podman machine start'")
 	}
 
-	imageDigest, imageId, err := podman.GetOciImage(idOrName)
+	imageId, imageDigest, err := podman.PullImage(idOrName)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to pull image: %w", err)
 	}
 
 	// Create VM cache dir; one per oci bootc image

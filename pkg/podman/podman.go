@@ -1,79 +1,125 @@
 package podman
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
+	"podman-bootc/pkg/config"
 
-	_ "github.com/containers/podman/v5/pkg/bindings"
+	"github.com/containers/podman/v5/pkg/bindings"
+	"github.com/containers/podman/v5/pkg/bindings/containers"
+	"github.com/containers/podman/v5/pkg/bindings/images"
+	"github.com/containers/podman/v5/pkg/domain/entities/types"
+	"github.com/containers/podman/v5/pkg/specgen"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 )
 
-// TODO merge with the version in https://github.com/cgwalters/podman/commits/machine-exec/
-func NewCommand(args []string) *exec.Cmd {
-	c := exec.Command("podman", args...)
-	// Default always to using podman machine via the root connection
-	c.Env = append(c.Environ(), "CONTAINER_CONNECTION=podman-machine-default-root")
-	return c
+var ctx context.Context = func() (ctx context.Context) {
+	if _, err := os.Stat(config.MachineSocket); err != nil {
+		logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
+		os.Exit(1)
+		return
+	}
+
+	ctx, err := bindings.NewConnectionWithIdentity(
+		context.Background(),
+		fmt.Sprintf("unix://%s", config.MachineSocket),
+		config.MachineSshKeyPriv,
+		true)
+	if err != nil {
+		logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
+		os.Exit(1)
+		return
+	}
+
+	return ctx
+}()
+
+// PullImage fetches the image if not present
+func PullImage(image string) (id string, digest string, err error) {
+	pullPolicy := "missing"
+	ids, err := images.Pull(ctx, image, &images.PullOptions{Policy: &pullPolicy})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to pull image: %w", err)
+	}
+
+	if len(ids) == 0 {
+		return "", "", fmt.Errorf("no ids returned from image pull")
+	}
+
+	if len(ids) > 1 {
+		return "", "", fmt.Errorf("multiple ids returned from image pull")
+	}
+
+	inspectReport, err := images.GetImage(ctx, image, &images.GetOptions{})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get image: %w", err)
+	}
+
+	return ids[0], inspectReport.Digest.String(), nil
 }
 
-// Run synchronously runs podman as a subprocess, propagating stdout/stderr
-func Run(args []string) error {
-	c := NewCommand(args)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
+// BootcInstallToDisk runs the bootc installer in a container to create a disk image
+func BootcInstallToDisk(image string, disk *os.File) (err error) {
+	createResponse, err := createContainer(image, disk)
+	if err != nil {
+		return fmt.Errorf("failed to create container: %w", err)
+	}
+
+	// run the container to create the disk
+	err = containers.Start(ctx, createResponse.ID, &containers.StartOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+	return
 }
 
-// GetOciImage fetches the image if not present, and returns its digest
-func GetOciImage(idOrName string) (string, string, error) {
-	// Run an inspect to see if the image is present, otherwise pull.
-	// TODO: Add podman pull --if-not-present or so.
-	digest, err := inspect(idOrName, "{{.Digest}}", true)
+func createContainer(image string, disk *os.File) (createResponse types.ContainerCreateResponse, err error) {
+	envHost := true
+	privileged := true
+
+	s := &specgen.SpecGenerator{
+		ContainerBasicConfig: specgen.ContainerBasicConfig{
+			Name: "podman-bootc-installer",
+			Command: []string{
+				"bootc", "install", "to-disk", "--via-loopback", "--generic-image",
+				"--skip-fetch-check", "/output/" + filepath.Base(disk.Name()),
+			},
+			EnvHost: &envHost,
+			PidNS:   specgen.Namespace{NSMode: specgen.Host},
+		},
+		ContainerStorageConfig: specgen.ContainerStorageConfig{
+			Image: image,
+			Mounts: []specs.Mount{
+				{
+					Source:      "/var/lib/containers",
+					Destination: "/var/lib/containers",
+					Type:        "bind",
+				},
+				{
+					Source:      "/dev",
+					Destination: "/dev",
+					Type:        "bind",
+				},
+			},
+		},
+		ContainerSecurityConfig: specgen.ContainerSecurityConfig{
+			Privileged:  &privileged,
+			SelinuxOpts: []string{"type:unconfined_t"}, // TODO: verify this in the container
+		},
+		ContainerNetworkConfig: specgen.ContainerNetworkConfig{
+			NetNS: specgen.Namespace{
+				NSMode: specgen.Host,
+			},
+		},
+	}
+
+	createResponse, err = containers.CreateWithSpec(ctx, s, &containers.CreateOptions{})
 	if err != nil {
-		logrus.Debugf("Inspect failed: %v", err)
-		if err := Run([]string{"pull", idOrName}); err != nil {
-			return "", "", fmt.Errorf("pulling image: %w", err)
-		}
+		return createResponse, fmt.Errorf("failed to create container: %w", err)
 	}
 
-	digest, err = inspect(idOrName, "{{.Digest}}", false)
-	if err != nil {
-		return "", "", err
-	}
-
-	id, err := inspect(idOrName, "{{.Id}}", false)
-	if err != nil {
-		return "", "", err
-	}
-	return digest, id, nil
-}
-
-// Get the SSH key podman machine generates by default
-func MachineSSHKey() (string, string, error) {
-	homedir, err := os.UserHomeDir()
-	if err != nil {
-		return "", "", err
-	}
-	privkey := filepath.Join(homedir, ".ssh/podman-machine-default")
-	pubkey := privkey + ".pub"
-	return privkey, pubkey, nil
-}
-
-func inspect(idOrName, format string, quiet bool) (string, error) {
-	c := NewCommand([]string{"image", "inspect", "-f", format, idOrName})
-	buf := &bytes.Buffer{}
-	c.Stdout = buf
-	if !quiet {
-		c.Stderr = os.Stderr
-	}
-
-	if err := c.Run(); err != nil {
-		return "", fmt.Errorf("failed to inspect %s: %w", idOrName, err)
-	}
-
-	return strings.TrimSpace(buf.String()), nil
+	return
 }
