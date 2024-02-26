@@ -32,7 +32,7 @@ var (
 		Use:          "run",
 		Short:        "Run a bootc container as a VM",
 		Long:         "Run a bootc container as a VM",
-		Args:         cobra.ExactArgs(1),
+		Args:         cobra.MinimumNArgs(1),
 		RunE:         doBoot,
 		SilenceUsage: true,
 	}
