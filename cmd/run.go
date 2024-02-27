@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,10 +53,6 @@ func init() {
 
 func doRun(flags *cobra.Command, args []string) error {
 	idOrName := args[0]
-	if !podman.IsDefaultMachineRunning() {
-		return errors.New("podman default machine not running: please execute 'podman machine init && podman machine start'")
-	}
-
 	imageId, imageDigest, err := podman.PullImage(idOrName)
 	if err != nil {
 		return fmt.Errorf("unable to pull image: %w", err)
