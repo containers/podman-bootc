@@ -11,6 +11,7 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/containers/podman/v5/pkg/rootless"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -26,26 +27,29 @@ const (
 	CfgFile            = "bc.cfg"
 )
 
-//the podman library switches to the root user when imported
-//so we need to use rootless to get the correct user
+// the podman library switches to the root user when imported
+// so we need to use rootless to get the correct user
 func getUser() (u *user.User) {
 	u, err := user.LookupId(strconv.Itoa(rootless.GetRootlessUID()))
-
 	if err != nil {
-		panic(err)
+		logrus.Errorf("failed to get user: %v", err)
+		os.Exit(1)
 	}
 
 	return u
 }
 
 var (
-	User            = getUser()
-	UserSshDir      = filepath.Join(User.HomeDir, ".ssh")
-	ConfigDir       = filepath.Join(User.HomeDir, configDir)
-	CacheDir        = filepath.Join(User.HomeDir, cacheDir, projectName)
-	RunDir          = filepath.Join(xdg.RuntimeDir, projectName, "run")
-	MachineCacheDir = filepath.Join("/home/core", cacheDir, projectName)
-	DefaultIdentity = filepath.Join(UserSshDir, "id_rsa")
+	User              = getUser()
+	UserSshDir        = filepath.Join(User.HomeDir, ".ssh")
+	MachineSocket     = filepath.Join(User.HomeDir, ".local/share/containers/podman/machine/qemu/podman.sock")
+	MachineSshKeyPriv = filepath.Join(UserSshDir, "podman-machine-default")
+	MachineSshKeyPub  = filepath.Join(UserSshDir, "podman-machine-default.pub")
+	ConfigDir         = filepath.Join(User.HomeDir, configDir)
+	CacheDir          = filepath.Join(User.HomeDir, cacheDir, projectName)
+	RunDir            = filepath.Join(xdg.RuntimeDir, projectName, "run")
+	MachineCacheDir   = filepath.Join("/home/core", cacheDir, projectName)
+	DefaultIdentity   = filepath.Join(UserSshDir, "id_rsa")
 )
 
 // VM Status

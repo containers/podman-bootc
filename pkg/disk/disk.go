@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-	"syscall"
-
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/podman"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -43,17 +41,9 @@ func InstallImage(vmdir, containerImage, imageDigest string) error {
 		}
 	}()
 
-	// https://github.com/containers/bootc/blob/main/docs/install.md#using-bootc-install-to-disk---via-loopback
-	volumeBind := fmt.Sprintf("%s:/output", vmdir)
-	installArgsForPodman := []string{"run", "--rm", "--privileged", "--pid=host", "-v", "/dev:/dev", "-v", volumeBind, "--security-opt", "label=type:unconfined_t"}
-	if val, ok := os.LookupEnv("PODMAN_BOOTC_INST_ARGS"); ok {
-		parts := strings.Split(val, " ")
-		installArgsForPodman = append(installArgsForPodman, parts...)
-	}
-	installArgsForPodman = append(installArgsForPodman, containerImage)
-	installArgsForBootc := []string{"bootc", "install", "to-disk", "--via-loopback", "--generic-image", "--skip-fetch-check", "/output/" + filepath.Base(temporaryDisk.Name())}
-	if err := podman.Run(append(installArgsForPodman, installArgsForBootc...)); err != nil {
-		return fmt.Errorf("failed to generate disk image via bootc install to-disk --via-loopback")
+	err = podman.BootcInstallToDisk(containerImage, temporaryDisk)
+	if err != nil {
+		return fmt.Errorf("failed to create disk image: %w", err)
 	}
 	serializedMeta := diskFromContainerMeta{
 		ImageDigest: imageDigest,

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,13 +53,9 @@ func init() {
 
 func doRun(flags *cobra.Command, args []string) error {
 	idOrName := args[0]
-	if !podman.IsDefaultMachineRunning() {
-		return errors.New("podman default machine not running: please execute 'podman machine init && podman machine start'")
-	}
-
-	imageDigest, imageId, err := podman.GetOciImage(idOrName)
+	imageId, imageDigest, err := podman.PullImage(idOrName)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to pull image: %w", err)
 	}
 
 	// Create VM cache dir; one per oci bootc image
@@ -78,11 +73,6 @@ func doRun(flags *cobra.Command, args []string) error {
 	logrus.Debugf("installImage elapsed: %v", elapsed)
 
 	// run the new image
-	privkey, _, err := podman.MachineSSHKey()
-	if err != nil {
-		return fmt.Errorf("getting podman ssh")
-	}
-
 	// cloud-init required?
 	ciPort := -1 // for http transport
 	ciData := flags.Flags().Changed("cloudinit")
@@ -98,13 +88,13 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
 	}
 
-	err = vm.Run(vmDir, sshPort, vmConfig.User, privkey, ciData, ciPort)
+	err = vm.Run(vmDir, sshPort, vmConfig.User, config.MachineSshKeyPriv, ciData, ciPort)
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}
 
 	// write down the config file
-	if err := config.WriteConfig(vmDir, sshPort, privkey); err != nil {
+	if err := config.WriteConfig(vmDir, sshPort, config.MachineSshKeyPriv); err != nil {
 		return err
 	}
 
@@ -118,7 +108,7 @@ func doRun(flags *cobra.Command, args []string) error {
 
 		// ssh into it
 		cmd := args[1:]
-		err = ssh.CommonSSH(vmConfig.User, privkey, idOrName, sshPort, cmd)
+		err = ssh.CommonSSH(vmConfig.User, config.MachineSshKeyPriv, idOrName, sshPort, cmd)
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
 		}
