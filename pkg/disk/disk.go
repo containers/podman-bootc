@@ -45,7 +45,7 @@ func InstallImage(vmdir, containerImage, imageDigest string) error {
 
 	// https://github.com/containers/bootc/blob/main/docs/install.md#using-bootc-install-to-disk---via-loopback
 	volumeBind := fmt.Sprintf("%s:/output", vmdir)
-	installArgsForPodman := []string{"run", "--rm", "--privileged", "--pid=host", "-v", volumeBind, "--security-opt", "label=type:unconfined_t"}
+	installArgsForPodman := []string{"run", "--rm", "--privileged", "--pid=host", "-v", "/dev:/dev", "-v", volumeBind, "--security-opt", "label=type:unconfined_t"}
 	if val, ok := os.LookupEnv("PODMAN_BOOTC_INST_ARGS"); ok {
 		parts := strings.Split(val, " ")
 		installArgsForPodman = append(installArgsForPodman, parts...)
