@@ -30,7 +30,15 @@ const (
 // the podman library switches to the root user when imported
 // so we need to use rootless to get the correct user
 func getUser() (u *user.User) {
-	u, err := user.LookupId(strconv.Itoa(rootless.GetRootlessUID()))
+	rootlessId := rootless.GetRootlessUID()
+
+	var err error
+	if rootlessId < 0 {
+		u, err = user.Current()
+	} else {
+		u, err = user.LookupId(strconv.Itoa(rootlessId))
+	}
+
 	if err != nil {
 		logrus.Errorf("failed to get user: %v", err)
 		os.Exit(1)
