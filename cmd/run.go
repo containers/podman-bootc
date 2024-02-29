@@ -2,18 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"time"
 
+	"podman-bootc/pkg/bootc"
 	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/disk"
-	"podman-bootc/pkg/podman"
 	"podman-bootc/pkg/ssh"
 	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -52,27 +47,21 @@ func init() {
 }
 
 func doRun(flags *cobra.Command, args []string) error {
-	idOrName := args[0]
-	imageId, imageDigest, err := podman.PullImage(idOrName)
-	if err != nil {
-		return fmt.Errorf("unable to pull image: %w", err)
-	}
-
-	// Create VM cache dir; one per oci bootc image
-	vmDir := filepath.Join(config.CacheDir, imageId)
-	if err := os.MkdirAll(vmDir, os.ModePerm); err != nil {
-		return fmt.Errorf("MkdirAll: %w", err)
-	}
-
 	// install
-	start := time.Now()
-	if err := disk.GetOrInstallImage(vmDir, idOrName, imageDigest); err != nil {
-		return fmt.Errorf("installImage: %w", err)
+	idOrName := args[0]
+	bootcDisk := bootc.BootcDisk{
+		Image: idOrName,
 	}
-	elapsed := time.Since(start)
-	logrus.Debugf("installImage elapsed: %v", elapsed)
+	err := bootcDisk.Install()
+
+	if err != nil {
+		return fmt.Errorf("unable to install bootc image: %w", err)
+	}
 
 	// run the new image
+	vmDir := bootcDisk.GetDirectory()
+	imageDigest := bootcDisk.GetDigest()
+
 	// cloud-init required?
 	ciPort := -1 // for http transport
 	ciData := flags.Flags().Changed("cloudinit")
