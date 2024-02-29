@@ -62,8 +62,8 @@ func PullImage(image string) (id string, digest string, err error) {
 }
 
 // BootcInstallToDisk runs the bootc installer in a container to create a disk image
-func BootcInstallToDisk(image string, disk *os.File) (err error) {
-	createResponse, err := createContainer(image, disk)
+func BootcInstallToDisk(image string, disk *os.File, vmdir string) (err error) {
+	createResponse, err := createContainer(image, disk, vmdir)
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)
 	}
@@ -73,22 +73,33 @@ func BootcInstallToDisk(image string, disk *os.File) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
+
+	exitCode, err := containers.Wait(ctx, createResponse.ID, &containers.WaitOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to wait for container: %w", err)
+	}
+
+	if exitCode != 0 {
+		return fmt.Errorf("failed to run bootc install")
+	}
+
 	return
 }
 
-func createContainer(image string, disk *os.File) (createResponse types.ContainerCreateResponse, err error) {
-	envHost := true
+func createContainer(image string, disk *os.File, vmdir string) (createResponse types.ContainerCreateResponse, err error) {
 	privileged := true
+	autoRemove := true
+	labelNested := true
 
 	s := &specgen.SpecGenerator{
 		ContainerBasicConfig: specgen.ContainerBasicConfig{
-			Name: "podman-bootc-installer",
 			Command: []string{
 				"bootc", "install", "to-disk", "--via-loopback", "--generic-image",
 				"--skip-fetch-check", "/output/" + filepath.Base(disk.Name()),
 			},
-			EnvHost: &envHost,
 			PidNS:   specgen.Namespace{NSMode: specgen.Host},
+			Remove:  &autoRemove,
+			Annotations: map[string]string{"io.podman.annotations.label": "type:unconfined_t"},
 		},
 		ContainerStorageConfig: specgen.ContainerStorageConfig{
 			Image: image,
@@ -103,15 +114,21 @@ func createContainer(image string, disk *os.File) (createResponse types.Containe
 					Destination: "/dev",
 					Type:        "bind",
 				},
+				{
+					Source:      vmdir,
+					Destination: "/output",
+					Type:        "bind",
+				},
 			},
 		},
 		ContainerSecurityConfig: specgen.ContainerSecurityConfig{
 			Privileged:  &privileged,
-			SelinuxOpts: []string{"type:unconfined_t"}, // TODO: verify this in the container
+			LabelNested: &labelNested,
+			SelinuxOpts: []string{"type:unconfined_t"},
 		},
 		ContainerNetworkConfig: specgen.ContainerNetworkConfig{
 			NetNS: specgen.Namespace{
-				NSMode: specgen.Host,
+				NSMode: specgen.Bridge,
 			},
 		},
 	}
