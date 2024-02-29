@@ -203,15 +203,53 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	exitCode, err := containers.Wait(ctx, createResponse.ID, &containers.WaitOptions{})
+	// stream logs to stdout and stderr
+	stdOut := make(chan string)
+	stdErr := make(chan string)
+	logErrors := make(chan error)
+	defer close(stdOut)
+	defer close(stdErr)
+
+	go func() {
+		follow := true
+		err = containers.Logs(ctx, createResponse.ID, &containers.LogOptions{Follow: &follow}, stdOut, stdErr)
+		if err != nil {
+			logErrors <- err
+		}
+
+		close(logErrors)
+	}()
+
+	streamToStdout(stdOut)
+	streamToStdout(stdErr)
+
+	//wait for the container to finish
+	exitCode, err := containers.Wait(ctx, createResponse.ID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to wait for container: %w", err)
+	}
+
+	if err := <-logErrors; err != nil {
+		return fmt.Errorf("failed to get logs: %w", err)
 	}
 
 	if exitCode != 0 {
 		return fmt.Errorf("failed to run bootc install")
 	}
 
+	return
+}
+
+func streamToStdout(stream chan string) {
+	go func () {
+		for str := range stream {
+			fmt.Print(str)
+		}
+	}()
+}
+
+// streamLogs streams the logs from the container to stdout and stderr
+func (p *BootcDisk) streamLogs(containerId string) (err error) {
 	return
 }
 
