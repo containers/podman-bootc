@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"sync"
+
 	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/containers/podman/v5/pkg/bindings/containers"
 	"github.com/containers/podman/v5/pkg/bindings/images"
@@ -24,27 +26,6 @@ import (
 const diskSize = 10 * 1024 * 1024 * 1024
 const imageMetaXattr = "user.bootc.meta"
 
-var ctx context.Context = func() (ctx context.Context) {
-	if _, err := os.Stat(config.MachineSocket); err != nil {
-		logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
-		os.Exit(1)
-		return
-	}
-
-	ctx, err := bindings.NewConnectionWithIdentity(
-		context.Background(),
-		fmt.Sprintf("unix://%s", config.MachineSocket),
-		config.MachineSshKeyPriv,
-		true)
-	if err != nil {
-		logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
-		os.Exit(1)
-		return
-	}
-
-	return ctx
-}()
-
 // diskFromContainerMeta is serialized to JSON in a user xattr on a disk image
 type diskFromContainerMeta struct {
 	// imageDigest is the digested sha256 of the container that was used to build this disk
@@ -52,10 +33,45 @@ type diskFromContainerMeta struct {
 }
 
 type BootcDisk struct {
-	Image     string
-	file      *os.File
-	directory string
-	digest    string
+	Image              string
+	file               *os.File
+	directory          string
+	digest             string
+	ctx                context.Context
+	bootcInstallContainerId string
+}
+
+// create singleton for easy cleanup
+var (
+	instance     *BootcDisk
+	instanceOnce sync.Once
+)
+
+func NewBootcDisk(image string) *BootcDisk {
+	instanceOnce.Do(func() {
+		if _, err := os.Stat(config.MachineSocket); err != nil {
+			logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
+			os.Exit(1)
+			return
+		}
+
+		ctx, err := bindings.NewConnectionWithIdentity(
+			context.Background(),
+			fmt.Sprintf("unix://%s", config.MachineSocket),
+			config.MachineSshKeyPriv,
+			true)
+		if err != nil {
+			logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
+			os.Exit(1)
+			return
+		}
+
+		instance = &BootcDisk{
+			Image: image,
+			ctx:   ctx,
+		}
+	})
+	return instance
 }
 
 func (p *BootcDisk) GetDirectory() string {
@@ -81,6 +97,18 @@ func (p *BootcDisk) Install() (err error) {
 
 	elapsed := time.Since(start)
 	logrus.Debugf("installImage elapsed: %v", elapsed)
+
+	return
+}
+
+func (p *BootcDisk) Cleanup() (err error) {
+	force := true
+	if p.bootcInstallContainerId != "" {
+		_, err := containers.Remove(p.ctx, p.bootcInstallContainerId, &containers.RemoveOptions{Force: &force})
+		if err != nil {
+			return fmt.Errorf("failed to remove bootc install container: %w", err)
+		}
+	}
 
 	return
 }
@@ -161,7 +189,7 @@ func (p *BootcDisk) bootcInstallImageToDisk() (err error) {
 // pullImage fetches the container image if not present
 func (p *BootcDisk) pullImage() (err error) {
 	pullPolicy := "missing"
-	ids, err := images.Pull(ctx, p.Image, &images.PullOptions{Policy: &pullPolicy})
+	ids, err := images.Pull(p.ctx, p.Image, &images.PullOptions{Policy: &pullPolicy})
 	if err != nil {
 		return fmt.Errorf("failed to pull image: %w", err)
 	}
@@ -174,7 +202,7 @@ func (p *BootcDisk) pullImage() (err error) {
 		return fmt.Errorf("multiple ids returned from image pull")
 	}
 
-	_, err = images.GetImage(ctx, p.Image, &images.GetOptions{})
+	_, err = images.GetImage(p.ctx, p.Image, &images.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get image: %w", err)
 	}
@@ -197,8 +225,10 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 		return fmt.Errorf("failed to create container: %w", err)
 	}
 
+	p.bootcInstallContainerId = createResponse.ID //save the id for possible cleanup
+
 	// run the container to create the disk
-	err = containers.Start(ctx, createResponse.ID, &containers.StartOptions{})
+	err = containers.Start(p.ctx, p.bootcInstallContainerId, &containers.StartOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
@@ -212,7 +242,7 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 
 	go func() {
 		follow := true
-		err = containers.Logs(ctx, createResponse.ID, &containers.LogOptions{Follow: &follow}, stdOut, stdErr)
+		err = containers.Logs(p.ctx, p.bootcInstallContainerId, &containers.LogOptions{Follow: &follow}, stdOut, stdErr)
 		if err != nil {
 			logErrors <- err
 		}
@@ -224,7 +254,7 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 	streamToStdout(stdErr)
 
 	//wait for the container to finish
-	exitCode, err := containers.Wait(ctx, createResponse.ID, nil)
+	exitCode, err := containers.Wait(p.ctx, p.bootcInstallContainerId, nil)
 	if err != nil {
 		return fmt.Errorf("failed to wait for container: %w", err)
 	}
@@ -241,7 +271,7 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 }
 
 func streamToStdout(stream chan string) {
-	go func () {
+	go func() {
 		for str := range stream {
 			fmt.Print(str)
 		}
@@ -301,7 +331,7 @@ func (p *BootcDisk) createInstallContainer() (createResponse types.ContainerCrea
 		},
 	}
 
-	createResponse, err = containers.CreateWithSpec(ctx, s, &containers.CreateOptions{})
+	createResponse, err = containers.CreateWithSpec(p.ctx, s, &containers.CreateOptions{})
 	if err != nil {
 		return createResponse, fmt.Errorf("failed to create container: %w", err)
 	}

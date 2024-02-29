@@ -49,9 +49,7 @@ func init() {
 func doRun(flags *cobra.Command, args []string) error {
 	// install
 	idOrName := args[0]
-	bootcDisk := bootc.BootcDisk{
-		Image: idOrName,
-	}
+	bootcDisk := bootc.NewBootcDisk(idOrName)
 	err := bootcDisk.Install()
 
 	if err != nil {
