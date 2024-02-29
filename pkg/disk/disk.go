@@ -41,7 +41,7 @@ func InstallImage(vmdir, containerImage, imageDigest string) error {
 		}
 	}()
 
-	err = podman.BootcInstallToDisk(containerImage, temporaryDisk)
+	err = podman.BootcInstallToDisk(containerImage, temporaryDisk, vmdir)
 	if err != nil {
 		return fmt.Errorf("failed to create disk image: %w", err)
 	}
