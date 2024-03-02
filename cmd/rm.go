@@ -2,16 +2,19 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/utils"
+	"podman-bootc/pkg/vm"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 )
 
 var (
+	force     = false
 	removeAll = false
 	rmCmd     = &cobra.Command{
 		Use:   "rm <ID>",
@@ -25,6 +28,7 @@ var (
 func init() {
 	RootCmd.AddCommand(rmCmd)
 	rmCmd.Flags().BoolVar(&removeAll, "all", false, "Removes all non-running bootc VMs")
+	rmCmd.Flags().BoolVarP(&force, "force", "f", false, "Terminate a running VM")
 }
 
 func oneOrAll() cobra.PositionalArgs {
@@ -53,10 +57,14 @@ func prune(id string) error {
 		return err
 	}
 
-	vmPidFile := filepath.Join(vmDir, config.RunPidFile)
-	pid, _ := utils.ReadPidFile(vmPidFile)
-	if pid != -1 && utils.IsProcessAlive(pid) {
-		return fmt.Errorf("bootc container '%s' must be stopped first", id)
+	if !force {
+		vmPidFile := filepath.Join(vmDir, config.RunPidFile)
+		pid, _ := utils.ReadPidFile(vmPidFile)
+		if pid != -1 && utils.IsProcessAlive(pid) {
+			return fmt.Errorf("bootc container '%s' must be stopped first", id)
+		}
+	} else {
+		_ = vm.Kill(vmDir)
 	}
 
 	return os.RemoveAll(vmDir)
@@ -72,11 +80,16 @@ func pruneAll() error {
 		if f.IsDir() {
 			vmDir := filepath.Join(config.CacheDir, f.Name())
 			vmPidFile := filepath.Join(vmDir, config.RunPidFile)
-			pid, _ := utils.ReadPidFile(vmPidFile)
-			if pid == -1 || !utils.IsProcessAlive(pid) {
-				if err := os.RemoveAll(vmDir); err != nil {
-					logrus.Warningf("unable to remove %s", vmDir)
+			if !force {
+				pid, _ := utils.ReadPidFile(vmPidFile)
+				if pid != -1 && !utils.IsProcessAlive(pid) {
+					continue
 				}
+			} else {
+				_ = vm.Kill(vmDir)
+			}
+			if err := os.RemoveAll(vmDir); err != nil {
+				logrus.Warningf("unable to remove %s", vmDir)
 			}
 		}
 	}
