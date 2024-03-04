@@ -17,6 +17,7 @@ type osVmConfig struct {
 	CloudInitDir    string
 	KsFile          string
 	Background      bool
+	ExpandRoot      uint
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
 }
@@ -40,6 +41,8 @@ func init() {
 	runCmd.Flags().StringVarP(&vmConfig.User, "user", "u", "root", "--user <user name> (default: root)")
 
 	runCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
+
+	runCmd.Flags().UintVar(&vmConfig.ExpandRoot, "expand-root", 0, "Add additional space to block device (size in GiB)")
 
 	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
 	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
@@ -75,7 +78,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
 	}
 
-	err = vm.Run(vmDir, sshPort, vmConfig.User, config.MachineSshKeyPriv, ciData, ciPort)
+	err = vm.Run(vmDir, sshPort, vmConfig.User, config.MachineSshKeyPriv, ciData, ciPort, vmConfig.ExpandRoot)
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}

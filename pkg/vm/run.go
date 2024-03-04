@@ -36,7 +36,7 @@ func createQemuCommand() *exec.Cmd {
 	return exec.Command(path, args...)
 }
 
-func Run(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciPort int) error {
+func Run(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciPort int, expandRoot uint) error {
 	var args []string
 	args = append(args, "-cpu", "host")
 	args = append(args, "-m", "2G")
@@ -49,8 +49,26 @@ func Run(vmDir string, sshPort int, user, sshIdentity string, ciData bool, ciPor
 	vmPidFile := filepath.Join(vmDir, "run.pid")
 	args = append(args, "-pidfile", vmPidFile)
 
+	tempf, err := os.CreateTemp(vmDir, "tmpdisk")
+	if err != nil {
+		return err
+	}
+	diskPath := tempf.Name()
+	logrus.Debugf("Copying to %s", diskPath)
+	if err := tempf.Close(); err != nil {
+		return fmt.Errorf("failed to close: %w", err)
+	}
 	vmDiskImage := filepath.Join(vmDir, config.DiskImage)
-	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
+	if err := exec.Command("cp", "--reflink=always", vmDiskImage, diskPath).Run(); err != nil {
+		return fmt.Errorf("failed to copy %s %s: %w", vmDiskImage, diskPath, err)
+	}
+	if expandRoot > 0 {
+		if err := exec.Command("truncate", "-s", fmt.Sprintf("%dG", expandRoot), diskPath).Run(); err != nil {
+			return fmt.Errorf("failed to expand disk: %w", err)
+		}
+	}
+
+	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", diskPath)
 	args = append(args, "-drive", driveCmd)
 	if ciData {
 		if ciPort != -1 {
