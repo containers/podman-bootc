@@ -7,6 +7,7 @@ import (
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
+	"runtime"
 
 	"github.com/sirupsen/logrus"
 
@@ -64,7 +65,10 @@ func prune(id string) error {
 			return fmt.Errorf("bootc container '%s' must be stopped first", id)
 		}
 	} else {
-		_ = vm.Kill(vmDir)
+		err = forceKillVM(vmDir)
+		if err != nil {
+			logrus.Warningf("unable to kill %s", vmDir)
+		}
 	}
 
 	return os.RemoveAll(vmDir)
@@ -86,7 +90,10 @@ func pruneAll() error {
 					continue
 				}
 			} else {
-				_ = vm.Kill(vmDir)
+				err = forceKillVM(vmDir)
+				if err != nil {
+					logrus.Warningf("unable to kill %s", vmDir)
+				}
 			}
 			if err := os.RemoveAll(vmDir); err != nil {
 				logrus.Warningf("unable to remove %s", vmDir)
@@ -95,4 +102,17 @@ func pruneAll() error {
 	}
 
 	return nil
+}
+
+func forceKillVM(vmDir string) (err error) {
+	var bootcVM vm.BootcVM
+	if runtime.GOOS == "darwin" {
+		bootcVM = vm.NewBootcVMMacByDirectory(vmDir)
+	} else {
+		bootcVM, err = vm.NewBootcVMLinuxById(filepath.Base(vmDir))
+		if err != nil {
+			return err
+		}
+	}
+	return bootcVM.Kill()
 }

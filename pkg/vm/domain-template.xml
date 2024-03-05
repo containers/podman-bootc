@@ -1,0 +1,51 @@
+<domain type="qemu" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+  <name>{{.Name}}</name>
+  <memory unit="GiB">2</memory>
+  <vcpu>2</vcpu>
+  <features>
+    <acpi></acpi>
+  </features>
+  <cpu mode="host-model"/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <os firmware="efi">
+    <type>hvm</type>
+    <boot dev="hd"></boot>
+  </os>
+  <devices>
+    <!-- disk -->
+    <disk device="disk" type="file">
+      <driver name="qemu" type="raw"></driver>
+      <source file="{{.DiskImagePath}}"></source>
+      <target bus="virtio" dev="vda"></target>
+    </disk>
+    <!-- network -->
+    <interface type="user">
+      <backend type='passt'/>
+      <portForward proto='tcp'>
+        <range start='{{.Port}}' to='22'/>
+      </portForward>
+      <model type='virtio'/>
+    </interface>
+    <!-- graphics -->
+    <video>
+      <model heads="1" primary="yes" ram="65536" type="qxl" vgamem="16384" vram="65536"></model>
+    </video>
+    <channel type="spicevmc">
+      <target name="com.redhat.spice.0" type="virtio"></target>
+    </channel>
+    <graphics autoport="yes" type="spice">
+      <listen type="address"></listen>
+      <image compression="off"></image>
+    </graphics>
+  </devices>
+  <qemu:commandline>
+    <qemu:arg value="-pidfile"></qemu:arg>
+    <qemu:arg value="{{.PIDFile}}"></qemu:arg>
+    <qemu:arg value="-accel"></qemu:arg>
+    <qemu:arg value="kvm"></qemu:arg>
+    <qemu:arg value='-snapshot'/>
+    {{.SMBios}}
+  </qemu:commandline>
+</domain>
