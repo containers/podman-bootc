@@ -17,6 +17,7 @@ type osVmConfig struct {
 	CloudInitDir    string
 	KsFile          string
 	Background      bool
+	NoCredentials   bool
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
 }
@@ -41,6 +42,7 @@ func init() {
 
 	runCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit [[transport:]cloud-init data directory] (transport: cdrom | imds)")
 
+	runCmd.Flags().BoolVar(&vmConfig.NoCredentials, "no-creds", false, "Do not inject default SSH key via credentials; also implies --background")
 	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
 	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
 
@@ -75,7 +77,15 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
 	}
 
-	err = vm.Run(vmDir, sshPort, vmConfig.User, config.MachineSshKeyPriv, ciData, ciPort)
+	sshKey := config.MachineSshKeyPriv
+	if vmConfig.NoCredentials {
+		sshKey = ""
+		if !vmConfig.Background {
+			fmt.Print("No credentials provided for SSH, using --background by default")
+			vmConfig.Background = true
+		}
+	}
+	err = vm.Run(vmDir, sshPort, vmConfig.User, sshKey, ciData, ciPort)
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}
