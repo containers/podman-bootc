@@ -10,6 +10,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"libvirt.org/go/libvirt"
 )
 
@@ -40,6 +41,11 @@ func NewBootcVMLinuxById(imageID string) (vm *BootcVMLinux, err error) {
 	name := vmName(imageID)
 	domain, err := conn.LookupDomainByName(name)
 	if err != nil {
+		logrus.Warnf("unable to find domain %s: %v", name, err)
+	}
+
+	directory, err := config.BootcImagePath(imageID)
+	if err != nil {
 		return
 	}
 
@@ -47,6 +53,8 @@ func NewBootcVMLinuxById(imageID string) (vm *BootcVMLinux, err error) {
 		domain: domain,
 		BootcVMCommon: BootcVMCommon{
 			vmName: name,
+			imageID: imageID,
+			directory: directory,
 		},
 	}, nil
 }
@@ -192,7 +200,8 @@ func (v *BootcVMLinux) Delete() error {
 // Shutdown the VM
 func (v *BootcVMLinux) Shutdown() error {
 	if v.domain == nil {
-		return fmt.Errorf("no domain to kill")
+		logrus.Warn("no domain to shutdown")
+		return nil
 	}
 
 	//check if domain is running and shut it down
@@ -229,7 +238,6 @@ func (v *BootcVMLinux) ForceDelete() error {
 }
 
 func (v *BootcVMLinux) Exists() (bool, error) {
-
 	conn, err := libvirt.NewConnect("qemu:///session")
 	if err != nil {
 		return false, err
