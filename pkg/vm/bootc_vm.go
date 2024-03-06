@@ -33,13 +33,14 @@ type BootcVMParameters struct {
 
 type BootcVM interface {
 	Run() error
-	ForceKill() error
+	ForceDelete() error
 	Shutdown() error
 	Delete() error
 	IsRunning() (bool, error)
 	WriteConfig() error
 	WaitForSSHToBeReady() error
 	RunSSH([]string) error
+	DeleteFromCache() error
 }
 
 type BootcVMCommon struct {
@@ -140,6 +141,11 @@ func (v BootcVMCommon) RunSSH(inputArgs []string) error {
 	cmd.Stdin = os.Stdin
 
 	return cmd.Run()
+}
+
+//Delete removes the VM disk image and the VM configuration from the podman-bootc cache
+func (v BootcVMCommon) DeleteFromCache() error {
+	return os.RemoveAll(v.directory)
 }
 
 func (b BootcVMCommon) oemString() (string, error) {

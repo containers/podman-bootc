@@ -211,8 +211,8 @@ func (v *BootcVMLinux) Shutdown() error {
 	return nil
 }
 
-// ForceKill stops and removes the VM
-func (v *BootcVMLinux) ForceKill() error {
+// ForceDelete stops and removes the VM
+func (v *BootcVMLinux) ForceDelete() error {
 	err := v.Shutdown()
 	if err != nil {
 		return fmt.Errorf("unable to shutdown VM: %w", err)

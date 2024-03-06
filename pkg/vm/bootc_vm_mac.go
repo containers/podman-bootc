@@ -136,7 +136,7 @@ func (b *BootcVMMac) Shutdown() error {
 	}
 }
 
-func (b *BootcVMMac) ForceKill() error {
+func (b *BootcVMMac) ForceDelete() error {
 	err := b.Shutdown()
 	if err != nil {
 		return fmt.Errorf("unable to shutdown VM: %w", err)

@@ -44,8 +44,7 @@ func init() {
 
 	runCmd.Flags().BoolVar(&vmConfig.NoCredentials, "no-creds", false, "Do not inject default SSH key via credentials; also implies --background")
 	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
-	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
-
+	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Remove the VM and it's disk when the SSH session exits. Cannot be used with --background")
 }
 
 func doRun(flags *cobra.Command, args []string) error {
@@ -122,14 +121,13 @@ func doRun(flags *cobra.Command, args []string) error {
 			return fmt.Errorf("ssh: %w", err)
 		}
 
+		bootcVM.ForceDelete() //delete the VM, but keep the disk image
+
 		// Always remove when executing a command
 		if vmConfig.RemoveVm || len(cmd) > 0 {
-			// stop the new VM
-			//poweroff := []string{"poweroff"}
-			//err = CommonSSH("root", DefaultIdentity, name, sshPort, poweroff)
-			err = bootcVM.ForceKill()
+			err = bootcVM.DeleteFromCache()
 			if err != nil {
-				return fmt.Errorf("unable to kill VM: %w", err)
+				return fmt.Errorf("unable to remove VM from cache: %w", err)
 			}
 		}
 	}

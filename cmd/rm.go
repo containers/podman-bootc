@@ -51,24 +51,24 @@ func doRemove(_ *cobra.Command, args []string) error {
 }
 
 func prune(id string) error {
+	bootcVM, err := getVM(id)
+	if err != nil {
+		return fmt.Errorf("unable to get VM %s: %v", id, err)
+	}
+
 	if force {
-		err := forceKillVM(id)
+		err := forceKillVM(bootcVM)
 		if err != nil {
 			return fmt.Errorf("unable to force kill %s", id)
 		}
 	} else {
-		err := killVM(id)
+		err := killVM(bootcVM)
 		if err != nil {
 			return fmt.Errorf("unable to kill %s", id)
 		}
 	}
 
-	vmDir, err := config.BootcImagePath(id)
-	if err != nil {
-		return err
-	}
-
-	return os.RemoveAll(vmDir)
+	return nil
 }
 
 func pruneAll() error {
@@ -105,28 +105,29 @@ func getVM(id string) (bootcVM vm.BootcVM, err error) {
 	return
 }
 
-func killVM(id string) (err error) {
-	bootcVM, err := getVM(id)
-	if err != nil {
-		return
-	}
-
+func killVM(bootcVM vm.BootcVM) (err error) {
 	isRunning, err := bootcVM.IsRunning()
 	if err != nil {
 		return
 	}
 
 	if isRunning {
-		return fmt.Errorf("%s is currently running. Stop it first or use the -f flag.", id)
+		return fmt.Errorf("VM is currently running. Stop it first or use the -f flag.")
 	} else {
-		return bootcVM.Delete()
+		err = bootcVM.Delete()
+		if err != nil {
+			return
+		}
 	}
+
+	return bootcVM.DeleteFromCache()
 }
 
-func forceKillVM(id string) (err error) {
-	bootcVM, err := getVM(id)
+func forceKillVM(bootcVM vm.BootcVM) (err error) {
+	err = bootcVM.ForceDelete()
 	if err != nil {
 		return
 	}
-	return bootcVM.ForceKill()
+
+	return bootcVM.DeleteFromCache()
 }
