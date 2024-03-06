@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/ssh"
 	"podman-bootc/pkg/utils"
 
 	streamarch "github.com/coreos/stream-metadata-go/arch"
@@ -20,16 +21,21 @@ type BootcVMMac struct {
 	ciData bool
 }
 
-func NewBootcVMMacByDirectory(directory string) (vm BootcVMMac) {
-	return BootcVMMac{
+func NewBootcVMMacById(id string) (vm *BootcVMMac, err error) {
+	directory, err := config.BootcImagePath(id)
+	if err != nil {
+		return
+	}
+
+	return &BootcVMMac{
 		BootcVMCommon: BootcVMCommon{
 			directory: directory,
 		},
-	}
+	}, nil
 }
 
-func NewBootcVMMac(params BootcVMParameters) (BootcVMMac, error) {
-	return BootcVMMac{
+func NewBootcVMMac(params BootcVMParameters) (*BootcVMMac, error) {
+	return &BootcVMMac{
 		BootcVMCommon: BootcVMCommon{
 			user:          params.User,
 			directory:     params.Directory,
@@ -48,7 +54,7 @@ func NewBootcVMMac(params BootcVMParameters) (BootcVMMac, error) {
 	}, nil
 }
 
-func (b BootcVMMac) Run() error {
+func (b *BootcVMMac) Run() error {
 	var args []string
 	args = append(args, "-cpu", "host")
 	args = append(args, "-m", "2G")
@@ -94,7 +100,7 @@ func (b BootcVMMac) Run() error {
 	return cmd.Start()
 }
 
-func (b BootcVMMac) Kill() error {
+func (b *BootcVMMac) Delete() error {
 	vmPidFile := filepath.Join(b.directory, config.RunPidFile)
 	pid, err := utils.ReadPidFile(vmPidFile)
 	if err != nil {
@@ -103,13 +109,62 @@ func (b BootcVMMac) Kill() error {
 
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		return fmt.Errorf("finding process: %w", err)
+		return fmt.Errorf("process not found while attempting to delete VM: %w", err)
 	}
 
 	return process.Signal(os.Interrupt)
 }
 
-func (b BootcVMMac) createQemuCommand() *exec.Cmd {
+func (b *BootcVMMac) Shutdown() error {
+	isRunning, err := b.IsRunning()
+	if err != nil {
+		return fmt.Errorf("unable to determine if VM is running: %w", err)
+	}
+
+	if isRunning {
+		id := b.imageID
+		cfg, err := config.LoadConfig(id)
+		if err != nil {
+			return err
+		}
+
+		poweroff := []string{"poweroff"}
+		return ssh.CommonSSH(b.user, cfg.SshIdentity, id, cfg.SshPort, poweroff)
+	} else {
+		logrus.Warningf("Unable to shutdown VM. It is not not running.")
+		return nil
+	}
+}
+
+func (b *BootcVMMac) ForceKill() error {
+	err := b.Shutdown()
+	if err != nil {
+		return fmt.Errorf("unable to shutdown VM: %w", err)
+	}
+
+	err = b.Delete()
+	if err != nil {
+		return fmt.Errorf("unable to delete VM: %w", err)
+	}
+
+	return nil
+}
+
+func (b *BootcVMMac) IsRunning() (bool, error) {
+	vmPidFile := filepath.Join(b.directory, config.RunPidFile)
+	pid, err := utils.ReadPidFile(vmPidFile)
+	if err != nil {
+		return false, fmt.Errorf("reading pid file: %w", err)
+	}
+
+	if pid != -1 && utils.IsProcessAlive(pid) {
+		return true, nil
+	} else {
+		return false, nil
+	}
+}
+
+func (b *BootcVMMac) createQemuCommand() *exec.Cmd {
 	var path string
 	args := []string{}
 	podmanqemuPath := "/opt/podman/qemu"

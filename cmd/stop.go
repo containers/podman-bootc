@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/ssh"
+	"podman-bootc/pkg/vm"
+	"runtime"
 
 	"github.com/spf13/cobra"
 )
@@ -19,13 +19,19 @@ func init() {
 	RootCmd.AddCommand(stopCmd)
 }
 
-func doStop(_ *cobra.Command, args []string) error {
+func doStop(_ *cobra.Command, args []string) (err error) {
 	id := args[0]
-	cfg, err := config.LoadConfig(id)
-	if err != nil {
-		return err
+	var bootcVM vm.BootcVM
+	if runtime.GOOS == "darwin" {
+		bootcVM, err = vm.NewBootcVMMacById(id)
+		if err != nil {
+			return err
+		}
+	} else {
+		bootcVM, err = vm.NewBootcVMLinuxById(id)
+		if err != nil {
+			return err
+		}
 	}
-
-	poweroff := []string{"poweroff"}
-	return ssh.CommonSSH("root", cfg.SshIdentity, id, cfg.SshPort, poweroff)
+	return bootcVM.Shutdown()
 }

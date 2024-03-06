@@ -127,7 +127,7 @@ func doRun(flags *cobra.Command, args []string) error {
 			// stop the new VM
 			//poweroff := []string{"poweroff"}
 			//err = CommonSSH("root", DefaultIdentity, name, sshPort, poweroff)
-			err = bootcVM.Kill()
+			err = bootcVM.ForceKill()
 			if err != nil {
 				return fmt.Errorf("unable to kill VM: %w", err)
 			}

@@ -33,13 +33,17 @@ type BootcVMParameters struct {
 
 type BootcVM interface {
 	Run() error
-	Kill() error
+	ForceKill() error
+	Shutdown() error
+	Delete() error
+	IsRunning() (bool, error)
 	WriteConfig() error
 	WaitForSSHToBeReady() error
 	RunSSH([]string) error
 }
 
 type BootcVMCommon struct {
+	vmName        string
 	directory     string
 	diskImagePath string
 	user          string

@@ -3,9 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
 	"runtime"
 
@@ -53,22 +51,21 @@ func doRemove(_ *cobra.Command, args []string) error {
 }
 
 func prune(id string) error {
+	if force {
+		err := forceKillVM(id)
+		if err != nil {
+			return fmt.Errorf("unable to force kill %s", id)
+		}
+	} else {
+		err := killVM(id)
+		if err != nil {
+			return fmt.Errorf("unable to kill %s", id)
+		}
+	}
+
 	vmDir, err := config.BootcImagePath(id)
 	if err != nil {
 		return err
-	}
-
-	if !force {
-		vmPidFile := filepath.Join(vmDir, config.RunPidFile)
-		pid, _ := utils.ReadPidFile(vmPidFile)
-		if pid != -1 && utils.IsProcessAlive(pid) {
-			return fmt.Errorf("bootc container '%s' must be stopped first", id)
-		}
-	} else {
-		err = forceKillVM(vmDir)
-		if err != nil {
-			logrus.Warningf("unable to kill %s", vmDir)
-		}
 	}
 
 	return os.RemoveAll(vmDir)
@@ -82,21 +79,10 @@ func pruneAll() error {
 
 	for _, f := range files {
 		if f.IsDir() {
-			vmDir := filepath.Join(config.CacheDir, f.Name())
-			vmPidFile := filepath.Join(vmDir, config.RunPidFile)
-			if !force {
-				pid, _ := utils.ReadPidFile(vmPidFile)
-				if pid != -1 && !utils.IsProcessAlive(pid) {
-					continue
-				}
-			} else {
-				err = forceKillVM(vmDir)
-				if err != nil {
-					logrus.Warningf("unable to kill %s", vmDir)
-				}
-			}
-			if err := os.RemoveAll(vmDir); err != nil {
-				logrus.Warningf("unable to remove %s", vmDir)
+			vmID := f.Name()
+			err := prune(vmID)
+			if err != nil {
+				logrus.Errorf("unable to remove %s: %v", vmID, err)
 			}
 		}
 	}
@@ -104,15 +90,43 @@ func pruneAll() error {
 	return nil
 }
 
-func forceKillVM(vmDir string) (err error) {
-	var bootcVM vm.BootcVM
+func getVM(id string) (bootcVM vm.BootcVM, err error) {
 	if runtime.GOOS == "darwin" {
-		bootcVM = vm.NewBootcVMMacByDirectory(vmDir)
-	} else {
-		bootcVM, err = vm.NewBootcVMLinuxById(filepath.Base(vmDir))
+		bootcVM, err = vm.NewBootcVMMacById(id)
 		if err != nil {
-			return err
+			return
+		}
+	} else {
+		bootcVM, err = vm.NewBootcVMLinuxById(id)
+		if err != nil {
+			return
 		}
 	}
-	return bootcVM.Kill()
+	return
+}
+
+func killVM(id string) (err error) {
+	bootcVM, err := getVM(id)
+	if err != nil {
+		return
+	}
+
+	isRunning, err := bootcVM.IsRunning()
+	if err != nil {
+		return
+	}
+
+	if isRunning {
+		return fmt.Errorf("%s is currently running. Stop it first or use the -f flag.", id)
+	} else {
+		return bootcVM.Delete()
+	}
+}
+
+func forceKillVM(id string) (err error) {
+	bootcVM, err := getVM(id)
+	if err != nil {
+		return
+	}
+	return bootcVM.ForceKill()
 }
