@@ -41,8 +41,6 @@
     </graphics>
   </devices>
   <qemu:commandline>
-    <qemu:arg value="-pidfile"></qemu:arg>
-    <qemu:arg value="{{.PIDFile}}"></qemu:arg>
     <qemu:arg value="-accel"></qemu:arg>
     <qemu:arg value="kvm"></qemu:arg>
     <qemu:arg value='-snapshot'/>
