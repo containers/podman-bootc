@@ -19,6 +19,7 @@
       <driver name="qemu" type="raw"></driver>
       <source file="{{.DiskImagePath}}"></source>
       <target bus="virtio" dev="vda"></target>
+      <transient/>
     </disk>
     <!-- network -->
     <interface type="user">
@@ -43,7 +44,7 @@
   <qemu:commandline>
     <qemu:arg value="-accel"></qemu:arg>
     <qemu:arg value="kvm"></qemu:arg>
-    <qemu:arg value='-snapshot'/>
+    <!-- <qemu:arg value='-snapshot'/> -->
     {{.SMBios}}
   </qemu:commandline>
 </domain>
