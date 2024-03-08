@@ -26,7 +26,7 @@ func vmName(id string) string {
 	return "podman-bootc-" + id[:12]
 }
 
-func NewBootcVMLinuxById(imageID string) (vm *BootcVMLinux, err error) {
+func NewVMById(imageID string) (vm *BootcVMLinux, err error) {
 	if imageID == "" {
 		return nil, fmt.Errorf("vm ID is required")
 	}
@@ -59,7 +59,7 @@ func NewBootcVMLinuxById(imageID string) (vm *BootcVMLinux, err error) {
 	}, nil
 }
 
-func NewBootcVMLinux(params BootcVMParameters) (*BootcVMLinux, error) {
+func NewVM(params BootcVMParameters) (*BootcVMLinux, error) {
 	if params.ImageID == "" || len(params.ImageID) < 64 {
 		return nil, fmt.Errorf("image ID is required")
 	}

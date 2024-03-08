@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"runtime"
 
 	"podman-bootc/pkg/bootc"
 	"podman-bootc/pkg/config"
@@ -90,12 +89,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		SSHPort:       sshPort,
 	}
 
-	var bootcVM vm.BootcVM
-	if runtime.GOOS == "darwin" {
-		bootcVM, err = vm.NewBootcVMMac(vmParameters)
-	} else {
-		bootcVM, err = vm.NewBootcVMLinux(vmParameters)
-	}
+	bootcVM, err := vm.NewVM(vmParameters)
 
 	err = bootcVM.Run()
 	if err != nil {

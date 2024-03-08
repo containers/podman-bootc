@@ -21,7 +21,7 @@ type BootcVMMac struct {
 	ciData bool
 }
 
-func NewBootcVMMacById(id string) (vm *BootcVMMac, err error) {
+func NewVMById(id string) (vm *BootcVMMac, err error) {
 	directory, err := config.BootcImagePath(id)
 	if err != nil {
 		return
@@ -34,7 +34,7 @@ func NewBootcVMMacById(id string) (vm *BootcVMMac, err error) {
 	}, nil
 }
 
-func NewBootcVMMac(params BootcVMParameters) (*BootcVMMac, error) {
+func NewVM(params BootcVMParameters) (*BootcVMMac, error) {
 	return &BootcVMMac{
 		BootcVMCommon: BootcVMCommon{
 			user:          params.User,
@@ -101,6 +101,8 @@ func (b *BootcVMMac) Run() error {
 }
 
 func (b *BootcVMMac) Delete() error {
+	logrus.Debugf("Deleting Mac VM %s", b.directory)
+
 	vmPidFile := filepath.Join(b.directory, config.RunPidFile)
 	pid, err := utils.ReadPidFile(vmPidFile)
 	if err != nil {
@@ -151,6 +153,12 @@ func (b *BootcVMMac) ForceDelete() error {
 }
 
 func (b *BootcVMMac) IsRunning() (bool, error) {
+	pidFileExists, err := utils.FileExists(b.pidFile)
+	if !pidFileExists {
+		logrus.Debugf("pid file does not exist, assuming VM is not running.")
+		return false, nil //assume if pid is missing the VM is not running
+	}
+
 	vmPidFile := filepath.Join(b.directory, config.RunPidFile)
 	pid, err := utils.ReadPidFile(vmPidFile)
 	if err != nil {
@@ -162,6 +170,10 @@ func (b *BootcVMMac) IsRunning() (bool, error) {
 	} else {
 		return false, nil
 	}
+}
+
+func (v *BootcVMMac) Exists() (bool, error) {
+	return utils.FileExists(v.pidFile)
 }
 
 func (b *BootcVMMac) createQemuCommand() *exec.Cmd {

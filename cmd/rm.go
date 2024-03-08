@@ -5,7 +5,6 @@ import (
 	"os"
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/vm"
-	"runtime"
 
 	"github.com/sirupsen/logrus"
 
@@ -51,7 +50,7 @@ func doRemove(_ *cobra.Command, args []string) error {
 }
 
 func prune(id string) error {
-	bootcVM, err := getVM(id)
+	bootcVM, err := vm.NewVMById(id)
 	if err != nil {
 		return fmt.Errorf("unable to get VM %s: %v", id, err)
 	}
@@ -90,34 +89,29 @@ func pruneAll() error {
 	return nil
 }
 
-func getVM(id string) (bootcVM vm.BootcVM, err error) {
-	if runtime.GOOS == "darwin" {
-		bootcVM, err = vm.NewBootcVMMacById(id)
-		if err != nil {
-			return
-		}
-	} else {
-		bootcVM, err = vm.NewBootcVMLinuxById(id)
-		if err != nil {
-			return
-		}
-	}
-	return
-}
-
 func killVM(bootcVM vm.BootcVM) (err error) {
-	isRunning, err := bootcVM.IsRunning()
+	vmExists, err := bootcVM.Exists()
 	if err != nil {
-		return
+		return fmt.Errorf("unable to check if VM exists: %v", err)
 	}
 
-	if isRunning {
-		return fmt.Errorf("VM is currently running. Stop it first or use the -f flag.")
-	} else {
-		err = bootcVM.Delete()
+	if vmExists {
+		var isRunning bool
+		isRunning, err = bootcVM.IsRunning()
 		if err != nil {
-			return
+			return fmt.Errorf("unable to check if VM is running: %v", err)
 		}
+
+		if isRunning {
+			return fmt.Errorf("VM is currently running. Stop it first or use the -f flag.")
+		} else {
+			err = bootcVM.Delete()
+			if err != nil {
+				return
+			}
+		}
+	} else {
+		logrus.Infof("VM does not exist, nothing to kill")
 	}
 
 	return bootcVM.DeleteFromCache()

@@ -41,6 +41,7 @@ type BootcVM interface {
 	WaitForSSHToBeReady() error
 	RunSSH([]string) error
 	DeleteFromCache() error
+	Exists() (bool, error)
 }
 
 type BootcVMCommon struct {

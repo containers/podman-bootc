@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"podman-bootc/pkg/vm"
-	"runtime"
 
 	"github.com/spf13/cobra"
 )
@@ -21,17 +20,9 @@ func init() {
 
 func doStop(_ *cobra.Command, args []string) (err error) {
 	id := args[0]
-	var bootcVM vm.BootcVM
-	if runtime.GOOS == "darwin" {
-		bootcVM, err = vm.NewBootcVMMacById(id)
-		if err != nil {
-			return err
-		}
-	} else {
-		bootcVM, err = vm.NewBootcVMLinuxById(id)
-		if err != nil {
-			return err
-		}
+	bootcVM, err := vm.NewVMById(id)
+	if err != nil {
+		return err
 	}
 	return bootcVM.Shutdown()
 }
