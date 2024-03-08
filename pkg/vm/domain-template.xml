@@ -29,17 +29,6 @@
       </portForward>
       <model type='virtio'/>
     </interface>
-    <!-- graphics -->
-    <video>
-      <model heads="1" primary="yes" ram="65536" type="qxl" vgamem="16384" vram="65536"></model>
-    </video>
-    <channel type="spicevmc">
-      <target name="com.redhat.spice.0" type="virtio"></target>
-    </channel>
-    <graphics autoport="yes" type="spice">
-      <listen type="address"></listen>
-      <image compression="off"></image>
-    </graphics>
   </devices>
   <qemu:commandline>
     <qemu:arg value="-accel"></qemu:arg>
