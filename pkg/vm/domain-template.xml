@@ -21,19 +21,14 @@
       <target bus="virtio" dev="vda"></target>
       <transient/>
     </disk>
-    <!-- network -->
-    <interface type="user">
-      <backend type='passt'/>
-      <portForward proto='tcp'>
-        <range start='{{.Port}}' to='22'/>
-      </portForward>
-      <model type='virtio'/>
-    </interface>
   </devices>
   <qemu:commandline>
     <qemu:arg value="-accel"></qemu:arg>
     <qemu:arg value="kvm"></qemu:arg>
-    <!-- <qemu:arg value='-snapshot'/> -->
+    <qemu:arg value='-netdev'/>
+    <qemu:arg value='user,id=n0,hostfwd=tcp::{{.Port}}-:22'/>
+    <qemu:arg value='-device' />
+    <qemu:arg value='virtio-net-pci,netdev=n0,bus=pci.0,addr=0x10' />
     {{.SMBios}}
   </qemu:commandline>
 </domain>
