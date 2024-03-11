@@ -33,11 +33,11 @@ type diskFromContainerMeta struct {
 }
 
 type BootcDisk struct {
-	Image              string
-	file               *os.File
-	directory          string
-	digest             string
-	ctx                context.Context
+	Image                   string
+	file                    *os.File
+	directory               string
+	digest                  string
+	ctx                     context.Context
 	bootcInstallContainerId string
 }
 
@@ -237,12 +237,13 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 	stdOut := make(chan string)
 	stdErr := make(chan string)
 	logErrors := make(chan error)
-	defer close(stdOut)
-	defer close(stdErr)
 
 	go func() {
 		follow := true
-		err = containers.Logs(p.ctx, p.bootcInstallContainerId, &containers.LogOptions{Follow: &follow}, stdOut, stdErr)
+		defer close(stdOut)
+		defer close(stdErr)
+		trueV := true
+		err = containers.Logs(p.ctx, p.bootcInstallContainerId, &containers.LogOptions{Follow: &follow, Stdout: &trueV, Stderr: &trueV}, stdOut, stdErr)
 		if err != nil {
 			logErrors <- err
 		}
@@ -250,8 +251,21 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 		close(logErrors)
 	}()
 
-	streamToStdout(stdOut)
-	streamToStdout(stdErr)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		for str := range stdOut {
+			fmt.Print(str)
+		}
+		wg.Done()
+	}()
+	wg.Add(1)
+	go func() {
+		for str := range stdErr {
+			fmt.Fprintf(os.Stderr, "%s", str)
+		}
+		wg.Done()
+	}()
 
 	//wait for the container to finish
 	exitCode, err := containers.Wait(p.ctx, p.bootcInstallContainerId, nil)
@@ -263,19 +277,14 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 		return fmt.Errorf("failed to get logs: %w", err)
 	}
 
+	// Ensure the streams are done
+	wg.Wait()
+
 	if exitCode != 0 {
 		return fmt.Errorf("failed to run bootc install")
 	}
 
 	return
-}
-
-func streamToStdout(stream chan string) {
-	go func() {
-		for str := range stream {
-			fmt.Print(str)
-		}
-	}()
 }
 
 // streamLogs streams the logs from the container to stdout and stderr
