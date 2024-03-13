@@ -5,7 +5,6 @@ import (
 
 	"podman-bootc/pkg/bootc"
 	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/ssh"
 	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
 
@@ -44,12 +43,11 @@ func init() {
 
 	runCmd.Flags().BoolVar(&vmConfig.NoCredentials, "no-creds", false, "Do not inject default SSH key via credentials; also implies --background")
 	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
-	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Kill the running VM when it exits, requires --interactive")
-
+	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Remove the VM and it's disk when the SSH session exits. Cannot be used with --background")
 }
 
 func doRun(flags *cobra.Command, args []string) error {
-	// install
+	// create the disk image
 	idOrName := args[0]
 	bootcDisk := bootc.NewBootcDisk(idOrName)
 	err := bootcDisk.Install()
@@ -58,66 +56,70 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to install bootc image: %w", err)
 	}
 
-	// run the new image
-	vmDir := bootcDisk.GetDirectory()
-	imageDigest := bootcDisk.GetDigest()
-
-	// cloud-init required?
-	ciPort := -1 // for http transport
-	ciData := flags.Flags().Changed("cloudinit")
-	if ciData {
-		ciPort, err = vm.SetCloudInit(imageDigest, vmConfig.CloudInitDir)
-		if err != nil {
-			return fmt.Errorf("setting up cloud init failed: %w", err)
-		}
-	}
-
+	//start the VM
 	sshPort, err := utils.GetFreeLocalTcpPort()
 	if err != nil {
-		return fmt.Errorf("ssh getFreeTcpPort: %w", err)
+		return fmt.Errorf("unable to get free port for SSH: %w", err)
 	}
 
-	sshKey := config.MachineSshKeyPriv
+	sshIdentity := config.MachineSshKeyPriv
+	background := vmConfig.Background
 	if vmConfig.NoCredentials {
-		sshKey = ""
-		if !vmConfig.Background {
+		sshIdentity = ""
+		if !background {
 			fmt.Print("No credentials provided for SSH, using --background by default")
-			vmConfig.Background = true
+			background = true
 		}
 	}
-	err = vm.Run(vmDir, sshPort, vmConfig.User, sshKey, ciData, ciPort)
+
+	cmd := args[1:]
+	vmParameters := vm.BootcVMParameters{
+		RemoveVm:      vmConfig.RemoveVm,
+		Background:    background,
+		Directory:     bootcDisk.GetDirectory(),
+		User:          vmConfig.User,
+		Name:          idOrName,
+		Cmd:           cmd,
+		ImageID:       bootcDisk.GetImageId(),
+		ImageDigest:   bootcDisk.GetDigest(),
+		CloudInitDir:  vmConfig.CloudInitDir,
+		NoCredentials: vmConfig.NoCredentials,
+		CloudInitData: flags.Flags().Changed("cloudinit"),
+		SSHIdentity:   sshIdentity,
+		SSHPort:       sshPort,
+	}
+
+	bootcVM, err := vm.NewVM(vmParameters)
+
+	err = bootcVM.Run()
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}
 
 	// write down the config file
-	if err := config.WriteConfig(vmDir, sshPort, config.MachineSshKeyPriv); err != nil {
+	if err = bootcVM.WriteConfig(); err != nil {
 		return err
 	}
 
 	if !vmConfig.Background {
 		// wait for VM
 		//time.Sleep(5 * time.Second) // just for now
-		err = vm.WaitSshReady(vmDir, sshPort)
+		err = bootcVM.WaitForSSHToBeReady()
 		if err != nil {
 			return fmt.Errorf("WaitSshReady: %w", err)
 		}
 
 		// ssh into it
-		cmd := args[1:]
-		err = ssh.CommonSSH(vmConfig.User, config.MachineSshKeyPriv, idOrName, sshPort, cmd)
+		err = bootcVM.RunSSH(cmd)
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
 		}
 
 		// Always remove when executing a command
 		if vmConfig.RemoveVm || len(cmd) > 0 {
-			// stop the new VM
-			//poweroff := []string{"poweroff"}
-			//err = CommonSSH("root", DefaultIdentity, name, sshPort, poweroff)
-			err = vm.Kill(vmDir)
+			err = bootcVM.ForceDelete() //delete the VM, but keep the disk image
 			if err != nil {
-				return fmt.Errorf("poweroff: %w", err)
+				return fmt.Errorf("unable to remove VM from cache: %w", err)
 			}
 		}
 	}

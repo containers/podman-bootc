@@ -15,45 +15,50 @@ import (
 	"podman-bootc/pkg/utils"
 )
 
-func SetCloudInit(id, option string) (int, error) {
-	if option == "" {
-		return -1, errors.New("empty option")
-	}
-
-	transport := getTransport(option)
-	path := getPath(option)
-
-	if transport == config.CiDefaultTransport {
-		return -1, createCiDataIso(id, path)
-	}
-
-	if transport == "imds" {
-		port, err := httpServer(path)
-		if err != nil {
-			return -1, fmt.Errorf("setting up cloud init http server: %w", err)
+func (b BootcVMCommon) SetCloudInit() (err error) {
+	// cloud-init required?
+	b.ciPort = -1 // for http transport
+	if b.ciData {
+		if b.cloudInitDir == "" {
+			return errors.New("empty cloud init directory")
 		}
-		return port, nil
-	}
 
-	return -1, errors.New("unknown transport")
+		transport := b.getTransport()
+		path := b.getPath()
+
+		if transport == config.CiDefaultTransport {
+			return b.createCiDataIso(path)
+		}
+
+		if transport == "imds" {
+			b.ciPort, err = b.httpServer(path)
+			if err != nil {
+				return fmt.Errorf("setting up cloud init http server: %w", err)
+			}
+			return nil
+		}
+
+		return errors.New("unknown transport")
+	}
+	return nil
 }
 
-func getTransport(option string) string {
-	if strings.Contains(option, ":") {
-		return option[:strings.IndexByte(option, ':')]
+func (b BootcVMCommon) getTransport() string {
+	if strings.Contains(b.cloudInitDir, ":") {
+		return b.cloudInitDir[:strings.IndexByte(b.cloudInitDir, ':')]
 	}
 	return config.CiDefaultTransport
 }
 
-func getPath(option string) string {
-	if strings.Contains(option, ":") {
-		return option[strings.IndexByte(option, ':')+1:]
+func (b BootcVMCommon) getPath() string {
+	if strings.Contains(b.cloudInitDir, ":") {
+		return b.cloudInitDir[strings.IndexByte(b.cloudInitDir, ':')+1:]
 	}
-	return option
+	return b.cloudInitDir
 }
 
-func createCiDataIso(id, inDir string) error {
-	vmDir := filepath.Join(config.CacheDir, id)
+func (b BootcVMCommon) createCiDataIso(inDir string) error {
+	vmDir := filepath.Join(config.CacheDir, b.imageDigest)
 	isoOutFile := filepath.Join(vmDir, config.CiDataIso)
 
 	args := []string{"-output", isoOutFile}
@@ -69,7 +74,7 @@ func createCiDataIso(id, inDir string) error {
 	return cmd.Run()
 }
 
-func httpServer(path string) (int, error) {
+func (b BootcVMCommon) httpServer(path string) (int, error) {
 	httpPort, err := utils.GetFreeLocalTcpPort()
 	if err != nil {
 		return -1, err

@@ -1,0 +1,34 @@
+<domain type="qemu" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+  <name>{{.Name}}</name>
+  <memory unit="GiB">2</memory>
+  <vcpu>2</vcpu>
+  <features>
+    <acpi></acpi>
+  </features>
+  <cpu mode="host-model"/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <os firmware="efi">
+    <type>hvm</type>
+    <boot dev="hd"></boot>
+  </os>
+  <devices>
+    <!-- disk -->
+    <disk device="disk" type="file">
+      <driver name="qemu" type="raw"></driver>
+      <source file="{{.DiskImagePath}}"></source>
+      <target bus="virtio" dev="vda"></target>
+      <transient/>
+    </disk>
+  </devices>
+  <qemu:commandline>
+    <qemu:arg value="-accel"></qemu:arg>
+    <qemu:arg value="kvm"></qemu:arg>
+    <qemu:arg value='-netdev'/>
+    <qemu:arg value='user,id=n0,hostfwd=tcp::{{.Port}}-:22'/>
+    <qemu:arg value='-device' />
+    <qemu:arg value='virtio-net-pci,netdev=n0,bus=pci.0,addr=0x10' />
+    {{.SMBios}}
+  </qemu:commandline>
+</domain>

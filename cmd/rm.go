@@ -3,9 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
 
 	"github.com/sirupsen/logrus"
@@ -52,22 +50,24 @@ func doRemove(_ *cobra.Command, args []string) error {
 }
 
 func prune(id string) error {
-	vmDir, err := config.BootcImagePath(id)
+	bootcVM, err := vm.NewVMById(id)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to get VM %s: %v", id, err)
 	}
 
-	if !force {
-		vmPidFile := filepath.Join(vmDir, config.RunPidFile)
-		pid, _ := utils.ReadPidFile(vmPidFile)
-		if pid != -1 && utils.IsProcessAlive(pid) {
-			return fmt.Errorf("bootc container '%s' must be stopped first", id)
+	if force {
+		err := forceKillVM(bootcVM)
+		if err != nil {
+			return fmt.Errorf("unable to force kill %s", id)
 		}
 	} else {
-		_ = vm.Kill(vmDir)
+		err := killVM(bootcVM)
+		if err != nil {
+			return fmt.Errorf("unable to kill %s", id)
+		}
 	}
 
-	return os.RemoveAll(vmDir)
+	return nil
 }
 
 func pruneAll() error {
@@ -78,21 +78,50 @@ func pruneAll() error {
 
 	for _, f := range files {
 		if f.IsDir() {
-			vmDir := filepath.Join(config.CacheDir, f.Name())
-			vmPidFile := filepath.Join(vmDir, config.RunPidFile)
-			if !force {
-				pid, _ := utils.ReadPidFile(vmPidFile)
-				if pid != -1 && !utils.IsProcessAlive(pid) {
-					continue
-				}
-			} else {
-				_ = vm.Kill(vmDir)
-			}
-			if err := os.RemoveAll(vmDir); err != nil {
-				logrus.Warningf("unable to remove %s", vmDir)
+			vmID := f.Name()
+			err := prune(vmID)
+			if err != nil {
+				logrus.Errorf("unable to remove %s: %v", vmID, err)
 			}
 		}
 	}
 
 	return nil
+}
+
+func killVM(bootcVM vm.BootcVM) (err error) {
+	vmExists, err := bootcVM.Exists()
+	if err != nil {
+		return fmt.Errorf("unable to check if VM exists: %v", err)
+	}
+
+	if vmExists {
+		var isRunning bool
+		isRunning, err = bootcVM.IsRunning()
+		if err != nil {
+			return fmt.Errorf("unable to check if VM is running: %v", err)
+		}
+
+		if isRunning {
+			return fmt.Errorf("VM is currently running. Stop it first or use the -f flag.")
+		} else {
+			err = bootcVM.Delete()
+			if err != nil {
+				return
+			}
+		}
+	} else {
+		logrus.Infof("VM does not exist, nothing to kill")
+	}
+
+	return bootcVM.DeleteFromCache()
+}
+
+func forceKillVM(bootcVM vm.BootcVM) (err error) {
+	err = bootcVM.ForceDelete()
+	if err != nil {
+		return
+	}
+
+	return bootcVM.DeleteFromCache()
 }

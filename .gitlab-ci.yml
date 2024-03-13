@@ -3,8 +3,11 @@ stages:
   - test
 
 build:
-  image: registry.access.redhat.com/ubi9/go-toolset
+  image: quay.io/centos/centos:stream9
   stage: build
   script:
+    - dnf -y install 'dnf-command(config-manager)'
+    - dnf -y config-manager --set-enabled crb
+    - dnf -y install go-toolset libvirt-devel
     - make GOOPTS=-buildvcs=false
     - make test

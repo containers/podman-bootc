@@ -39,6 +39,7 @@ type BootcDisk struct {
 	digest                  string
 	ctx                     context.Context
 	bootcInstallContainerId string
+	imageId                 string
 }
 
 // create singleton for easy cleanup
@@ -80,6 +81,10 @@ func (p *BootcDisk) GetDirectory() string {
 
 func (p *BootcDisk) GetDigest() string {
 	return p.digest
+}
+
+func (p *BootcDisk) GetImageId() string {
+	return p.imageId
 }
 
 func (p *BootcDisk) Install() (err error) {
@@ -208,6 +213,7 @@ func (p *BootcDisk) pullImage() (err error) {
 	}
 
 	imageId := ids[0]
+	p.imageId = imageId
 
 	// Create VM cache dir; one per oci bootc image
 	p.directory = filepath.Join(config.CacheDir, imageId)
