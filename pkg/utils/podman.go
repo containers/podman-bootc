@@ -3,8 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
-	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/user"
 
 	"github.com/containers/podman/v5/pkg/machine"
 	"github.com/containers/podman/v5/pkg/machine/define"
@@ -19,12 +18,13 @@ type MachineInfo struct {
 	Rootful         bool
 }
 
-func GetMachineInfo() (*MachineInfo, error) {
+func GetMachineInfo(user user.User) (*MachineInfo, error) {
 	minfo, err := getMachineInfo()
 	if err != nil {
 		var errIncompatibleMachineConfig *define.ErrIncompatibleMachineConfig
-		if errors.As(err, &errIncompatibleMachineConfig) {
-			minfo, err := getPv4MachineInfo()
+		var errVMDoesNotExist *define.ErrVMDoesNotExist
+		if errors.As(err, &errIncompatibleMachineConfig) || errors.As(err, &errVMDoesNotExist) {
+			minfo, err := getPv4MachineInfo(user)
 			if err != nil {
 				return nil, err
 			}
@@ -67,12 +67,12 @@ func getMachineInfo() (*MachineInfo, error) {
 }
 
 // Just to support podman v4.9, it will be removed in the future
-func getPv4MachineInfo() (*MachineInfo, error) {
+func getPv4MachineInfo(user user.User) (*MachineInfo, error) {
 	// Let's cheat and use hard-coded values for podman v4.
 	// We do that because libpod doesn't work if we import both v4 and v5.
 	return &MachineInfo{
-		PodmanSocket:    filepath.Join(config.User.HomeDir, ".local/share/containers/podman/machine/qemu/podman.sock"),
-		SSHIdentityPath: filepath.Join(config.UserSshDir, "podman-machine-default"),
+		PodmanSocket:    user.MachineSocket(),
+		SSHIdentityPath: user.MachineSshKeyPriv(),
 		Rootful:         true,
 	}, nil
 }

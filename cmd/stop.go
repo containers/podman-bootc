@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/user"
 	"podman-bootc/pkg/vm"
 
 	"github.com/spf13/cobra"
@@ -19,8 +21,17 @@ func init() {
 }
 
 func doStop(_ *cobra.Command, args []string) (err error) {
+	user, err := user.NewUser()
+	if err != nil {
+		return err
+	}
+
 	id := args[0]
-	bootcVM, err := vm.NewVMById(id)
+	bootcVM, err := vm.NewVM(vm.NewVMParameters{
+		ImageID:    id,
+		LibvirtUri: config.LibvirtUri,
+		User:       user,
+	})
 	if err != nil {
 		return err
 	}

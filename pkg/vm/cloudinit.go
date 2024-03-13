@@ -6,40 +6,30 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"podman-bootc/pkg/config"
 )
 
 func (b *BootcVMCommon) ParseCloudInit() (err error) {
-	// cloud-init required?
 	if b.hasCloudInit {
 		if b.cloudInitDir == "" {
 			return errors.New("empty cloud init directory")
 		}
 
-		path := b.getPath()
-		err = b.createCiDataIso(path)
+		err = b.createCiDataIso(b.cloudInitDir)
 		if err != nil {
 			return fmt.Errorf("creating cloud-init iso: %w", err)
 		}
 
-		ciDataIso := filepath.Join(b.directory, config.CiDataIso)
+		ciDataIso := filepath.Join(b.cacheDir, config.CiDataIso)
 		b.cloudInitArgs = ciDataIso
 	}
 
 	return nil
 }
 
-func (b *BootcVMCommon) getPath() string {
-	if strings.Contains(b.cloudInitDir, ":") {
-		return b.cloudInitDir[strings.IndexByte(b.cloudInitDir, ':')+1:]
-	}
-	return b.cloudInitDir
-}
-
 func (b *BootcVMCommon) createCiDataIso(inDir string) error {
-	isoOutFile := filepath.Join(b.directory, config.CiDataIso)
+	isoOutFile := filepath.Join(b.cacheDir, config.CiDataIso)
 
 	args := []string{"-output", isoOutFile}
 	args = append(args, "-volid", "cidata", "-joliet", "-rock", "-partition_cyl_align", "on")

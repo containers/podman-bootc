@@ -17,42 +17,48 @@ type BootcVMMac struct {
 	BootcVMCommon
 }
 
-func NewVMById(imageID string) (vm *BootcVMMac, err error) {
-	vm = &BootcVMMac{
-		BootcVMCommon: BootcVMCommon{
-			imageID: imageID,
-		},
+func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
+	if params.ImageID == "" {
+		return nil, fmt.Errorf("image ID is required")
 	}
 
-	err = vm.loadConfig()
+	cacheDir, err := getVMCachePath(params.ImageID, params.User)
 	if err != nil {
-		return nil, fmt.Errorf("unable to load VM config: %w", err)
+		return nil, fmt.Errorf("unable to get VM cache path: %w", err)
+	}
+
+	vm = &BootcVMMac{
+		BootcVMCommon: BootcVMCommon{
+			imageID:       params.ImageID,
+			cacheDir:      cacheDir,
+			diskImagePath: filepath.Join(cacheDir, config.DiskImage),
+			pidFile:       filepath.Join(cacheDir, config.RunPidFile),
+			user:          params.User,
+		},
 	}
 
 	return vm, nil
+
 }
 
-func NewVM(params BootcVMParameters) (*BootcVMMac, error) {
-	return &BootcVMMac{
-		BootcVMCommon: BootcVMCommon{
-			user:          params.User,
-			directory:     params.Directory,
-			diskImagePath: filepath.Join(params.Directory, config.DiskImage),
-			sshIdentity:   params.SSHIdentity,
-			sshPort:       params.SSHPort,
-			removeVm:      params.RemoveVm,
-			background:    params.Background,
-			name:          params.Name,
-			cmd:           params.Cmd,
-			pidFile:       filepath.Join(params.Directory, config.RunPidFile),
-			imageID:       params.ImageID,
-			hasCloudInit:  params.CloudInitData,
-			cloudInitDir:  params.CloudInitDir,
-		},
-	}, nil
-}
+func (b *BootcVMMac) Run(params RunVMParameters) (err error) {
+	b.sshPort = params.SSHPort
+	b.removeVm = params.RemoveVm
+	b.background = params.Background
+	b.cmd = params.Cmd
+	b.hasCloudInit = params.CloudInitData
+	b.cloudInitDir = params.CloudInitDir
+	b.vmUsername = params.VMUser
+	b.sshIdentity = params.SSHIdentity
 
-func (b *BootcVMMac) Run() error {
+	if params.NoCredentials {
+		b.sshIdentity = ""
+		if !b.background {
+			fmt.Print("No credentials provided for SSH, using --background by default")
+			b.background = true
+		}
+	}
+
 	var args []string
 	args = append(args, "-cpu", "host")
 	args = append(args, "-m", "2G")
@@ -60,16 +66,15 @@ func (b *BootcVMMac) Run() error {
 	args = append(args, "-snapshot")
 	nicCmd := fmt.Sprintf("user,model=virtio-net-pci,hostfwd=tcp::%d-:22", b.sshPort)
 	args = append(args, "-nic", nicCmd)
-	//args = append(args, "-nographic")
 
-	vmPidFile := filepath.Join(b.directory, "run.pid")
+	vmPidFile := filepath.Join(b.cacheDir, "run.pid")
 	args = append(args, "-pidfile", vmPidFile)
 
-	vmDiskImage := filepath.Join(b.directory, config.DiskImage)
+	vmDiskImage := filepath.Join(b.cacheDir, config.DiskImage)
 	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
 
-	err := b.ParseCloudInit()
+	err = b.ParseCloudInit()
 	if err != nil {
 		return err
 	}
@@ -100,10 +105,9 @@ func (b *BootcVMMac) Run() error {
 }
 
 func (b *BootcVMMac) Delete() error {
-	logrus.Debugf("Deleting Mac VM %s", b.directory)
+	logrus.Debugf("Deleting Mac VM %s", b.cacheDir)
 
-	vmPidFile := filepath.Join(b.directory, config.RunPidFile)
-	pid, err := utils.ReadPidFile(vmPidFile)
+	pid, err := utils.ReadPidFile(b.pidFile)
 	if err != nil {
 		return fmt.Errorf("reading pid file: %w", err)
 	}
@@ -117,6 +121,8 @@ func (b *BootcVMMac) Delete() error {
 }
 
 func (b *BootcVMMac) Shutdown() error {
+	b.SetUser("root") //TODO the stop command should accept a user parameter
+
 	isRunning, err := b.IsRunning()
 	if err != nil {
 		return fmt.Errorf("unable to determine if VM is running: %w", err)
@@ -152,8 +158,7 @@ func (b *BootcVMMac) IsRunning() (bool, error) {
 		return false, nil //assume if pid is missing the VM is not running
 	}
 
-	vmPidFile := filepath.Join(b.directory, config.RunPidFile)
-	pid, err := utils.ReadPidFile(vmPidFile)
+	pid, err := utils.ReadPidFile(b.pidFile)
 	if err != nil {
 		return false, fmt.Errorf("reading pid file: %w", err)
 	}
@@ -165,8 +170,8 @@ func (b *BootcVMMac) IsRunning() (bool, error) {
 	}
 }
 
-func (v *BootcVMMac) Exists() (bool, error) {
-	return utils.FileExists(v.pidFile)
+func (b *BootcVMMac) Exists() (bool, error) {
+	return utils.FileExists(b.pidFile)
 }
 
 func (b *BootcVMMac) createQemuCommand() (*exec.Cmd, error) {

@@ -6,6 +6,8 @@ require (
 	github.com/adrg/xdg v0.4.0
 	github.com/containers/podman/v5 v5.0.0-rc7
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/onsi/ginkgo/v2 v2.16.0
+	github.com/onsi/gomega v1.31.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/sys v0.18.0
@@ -55,6 +57,12 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/arch v0.7.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
+)
+
+require (
+	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/pprof v0.0.0-20230323073829-e72429f035bd // indirect
 )
 
 require (
