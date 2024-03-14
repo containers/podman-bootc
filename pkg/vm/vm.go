@@ -58,10 +58,11 @@ type BootcVMCommon struct {
 	pidFile       string
 	imageID       string
 	imageDigest   string
-	cloudInitDir  string
 	noCredentials bool
-	ciData        bool
-	ciPort        int
+	hasCloudInit  bool
+	cloudInitDir  string
+	cloudInitType string
+	cloudInitArgs string
 }
 
 // writeConfig writes the configuration for the VM to the disk
@@ -119,7 +120,7 @@ func (v BootcVMCommon) WaitForSSHToBeReady() error {
 	return fmt.Errorf("SSH did not become ready in %s seconds", timeout)
 }
 
-//RunSSH runs a command over ssh or starts an interactive ssh connection if no command is provided
+// RunSSH runs a command over ssh or starts an interactive ssh connection if no command is provided
 func (v BootcVMCommon) RunSSH(inputArgs []string) error {
 	sshDestination := v.user + "@localhost"
 	port := strconv.Itoa(v.sshPort)
@@ -144,7 +145,7 @@ func (v BootcVMCommon) RunSSH(inputArgs []string) error {
 	return cmd.Run()
 }
 
-//Delete removes the VM disk image and the VM configuration from the podman-bootc cache
+// Delete removes the VM disk image and the VM configuration from the podman-bootc cache
 func (v BootcVMCommon) DeleteFromCache() error {
 	return os.RemoveAll(v.directory)
 }
@@ -175,4 +176,3 @@ func (b BootcVMCommon) tmpFileInjectSshKeyEnc() (string, error) {
 	tmpFileCmdEnc := base64.StdEncoding.EncodeToString([]byte(tmpFileCmd))
 	return tmpFileCmdEnc, nil
 }
-

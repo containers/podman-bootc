@@ -70,17 +70,14 @@ func (b *BootcVMMac) Run() error {
 	vmDiskImage := filepath.Join(b.directory, config.DiskImage)
 	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
-	if b.ciData {
-		if b.ciPort != -1 {
-			// http cloud init data transport
-			// FIXME: this IP address is qemu specific, it should be configurable.
-			smbiosCmd := fmt.Sprintf("type=1,serial=ds=nocloud;s=http://10.0.2.2:%d/", b.ciPort)
-			args = append(args, "-smbios", smbiosCmd)
-		} else {
-			// cdrom cloud init data transport
-			ciDataIso := filepath.Join(b.directory, config.CiDataIso)
-			args = append(args, "-cdrom", ciDataIso)
-		}
+
+	err := b.ParseCloudInit()
+	if err != nil {
+		return err
+	}
+
+	if b.hasCloudInit {
+		args = append(args, "-"+b.cloudInitType, b.cloudInitArgs)
 	}
 
 	if b.sshIdentity != "" {

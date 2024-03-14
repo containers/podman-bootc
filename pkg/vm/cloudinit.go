@@ -15,10 +15,10 @@ import (
 	"podman-bootc/pkg/utils"
 )
 
-func (b BootcVMCommon) SetCloudInit() (err error) {
+func (b *BootcVMCommon) ParseCloudInit() (err error) {
 	// cloud-init required?
-	b.ciPort = -1 // for http transport
-	if b.ciData {
+	ciPort := -1 // for http transport
+	if b.hasCloudInit {
 		if b.cloudInitDir == "" {
 			return errors.New("empty cloud init directory")
 		}
@@ -27,39 +27,54 @@ func (b BootcVMCommon) SetCloudInit() (err error) {
 		path := b.getPath()
 
 		if transport == config.CiDefaultTransport {
-			return b.createCiDataIso(path)
-		}
-
-		if transport == "imds" {
-			b.ciPort, err = b.httpServer(path)
+			err = b.createCiDataIso(path)
+			if err != nil {
+				return fmt.Errorf("creating cloud-init iso: %w", err)
+			}
+		} else if transport == "imds" {
+			ciPort, err = b.httpServer(path)
 			if err != nil {
 				return fmt.Errorf("setting up cloud init http server: %w", err)
 			}
-			return nil
+		} else {
+			return errors.New("unknown cloudinit transport")
 		}
 
-		return errors.New("unknown transport")
+		if ciPort != -1 {
+			// http cloud init data transport
+			// FIXME: this IP address is qemu specific, it should be configurable.
+			smbiosCmd := fmt.Sprintf("type=1,serial=ds=nocloud;s=http://10.0.2.2:%d/", ciPort)
+			// args = append(args, "-smbios", smbiosCmd)
+			b.cloudInitType = "smbios"
+			b.cloudInitArgs = smbiosCmd
+		} else {
+			// cdrom cloud init data transport
+			ciDataIso := filepath.Join(b.directory, config.CiDataIso)
+			// args = append(args, "-cdrom", ciDataIso)
+			b.cloudInitType = "cdrom"
+			b.cloudInitArgs = ciDataIso
+		}
 	}
+
 	return nil
 }
 
-func (b BootcVMCommon) getTransport() string {
+func (b *BootcVMCommon) getTransport() string {
 	if strings.Contains(b.cloudInitDir, ":") {
 		return b.cloudInitDir[:strings.IndexByte(b.cloudInitDir, ':')]
 	}
 	return config.CiDefaultTransport
 }
 
-func (b BootcVMCommon) getPath() string {
+func (b *BootcVMCommon) getPath() string {
 	if strings.Contains(b.cloudInitDir, ":") {
 		return b.cloudInitDir[strings.IndexByte(b.cloudInitDir, ':')+1:]
 	}
 	return b.cloudInitDir
 }
 
-func (b BootcVMCommon) createCiDataIso(inDir string) error {
-	vmDir := filepath.Join(config.CacheDir, b.imageDigest)
-	isoOutFile := filepath.Join(vmDir, config.CiDataIso)
+func (b *BootcVMCommon) createCiDataIso(inDir string) error {
+	isoOutFile := filepath.Join(b.directory, config.CiDataIso)
 
 	args := []string{"-output", isoOutFile}
 	args = append(args, "-volid", "cidata", "-joliet", "-rock", "-partition_cyl_align", "on")
@@ -74,7 +89,7 @@ func (b BootcVMCommon) createCiDataIso(inDir string) error {
 	return cmd.Run()
 }
 
-func (b BootcVMCommon) httpServer(path string) (int, error) {
+func (b *BootcVMCommon) httpServer(path string) (int, error) {
 	httpPort, err := utils.GetFreeLocalTcpPort()
 	if err != nil {
 		return -1, err
