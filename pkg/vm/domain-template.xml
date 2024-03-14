@@ -1,11 +1,10 @@
-<domain type="qemu" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
   <name>{{.Name}}</name>
   <memory unit="GiB">2</memory>
   <vcpu>2</vcpu>
   <features>
     <acpi></acpi>
   </features>
-  <cpu mode="host-model"/>
   <on_poweroff>destroy</on_poweroff>
   <on_reboot>restart</on_reboot>
   <on_crash>destroy</on_crash>
@@ -23,6 +22,8 @@
     </disk>
   </devices>
   <qemu:commandline>
+    <qemu:arg value="-cpu"></qemu:arg>
+    <qemu:arg value="host"></qemu:arg>
     <qemu:arg value="-accel"></qemu:arg>
     <qemu:arg value="kvm"></qemu:arg>
     <qemu:arg value='-netdev'/>
