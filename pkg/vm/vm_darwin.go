@@ -133,7 +133,7 @@ func (b *BootcVMMac) Shutdown() error {
 		poweroff := []string{"poweroff"}
 		return ssh.CommonSSH(b.user, cfg.SshIdentity, id, cfg.SshPort, poweroff)
 	} else {
-		logrus.Warningf("Unable to shutdown VM. It is not not running.")
+		logrus.Infof("Unable to shutdown VM. It is not not running.")
 		return nil
 	}
 }

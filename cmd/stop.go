@@ -24,5 +24,5 @@ func doStop(_ *cobra.Command, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	return bootcVM.Shutdown()
+	return bootcVM.ForceDelete()
 }
