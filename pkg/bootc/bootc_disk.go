@@ -214,6 +214,7 @@ func (p *BootcDisk) pullImage() (err error) {
 
 	imageId := ids[0]
 	p.imageId = imageId
+	p.digest = imageId
 
 	// Create VM cache dir; one per oci bootc image
 	p.directory = filepath.Join(config.CacheDir, imageId)

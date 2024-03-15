@@ -22,7 +22,6 @@ const (
 	OciArchiveOutput   = "image-archive.tar"
 	DiskImage          = "disk.raw"
 	CiDataIso          = "cidata.iso"
-	CiDefaultTransport = "cdrom"
 	SshKeyFile         = "sshkey"
 	CfgFile            = "bc.cfg"
 )

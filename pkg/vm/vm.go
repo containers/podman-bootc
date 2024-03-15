@@ -61,7 +61,6 @@ type BootcVMCommon struct {
 	noCredentials bool
 	hasCloudInit  bool
 	cloudInitDir  string
-	cloudInitType string
 	cloudInitArgs string
 }
 

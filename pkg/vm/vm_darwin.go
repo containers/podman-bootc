@@ -17,8 +17,6 @@ import (
 
 type BootcVMMac struct {
 	BootcVMCommon
-	ciPort int
-	ciData bool
 }
 
 func NewVMById(id string) (vm *BootcVMMac, err error) {
@@ -48,8 +46,8 @@ func NewVM(params BootcVMParameters) (*BootcVMMac, error) {
 			cmd:           params.Cmd,
 			pidFile:       filepath.Join(params.Directory, config.RunPidFile),
 			imageID:       params.ImageID,
-			imageDigest:   params.ImageDigest,
-			ciData:        params.CloudInitData,
+			hasCloudInit:  params.CloudInitData,
+			cloudInitDir:  params.CloudInitDir,
 		},
 	}, nil
 }
@@ -77,7 +75,7 @@ func (b *BootcVMMac) Run() error {
 	}
 
 	if b.hasCloudInit {
-		args = append(args, "-"+b.cloudInitType, b.cloudInitArgs)
+		args = append(args, "-cdrom", b.cloudInitArgs)
 	}
 
 	if b.sshIdentity != "" {

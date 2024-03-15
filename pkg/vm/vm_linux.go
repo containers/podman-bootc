@@ -161,21 +161,14 @@ func (v *BootcVMLinux) parseDomainTemplate() (domainXML string, err error) {
 	}
 
 	if v.hasCloudInit {
-		if v.cloudInitType == "smbios" {
-			templateParams.CloudInitSMBios = fmt.Sprintf(`
-			<qemu:arg value='-smbios'/>
-			<qemu:arg value='%s'/>
-			`, v.cloudInitArgs)
-		} else if v.cloudInitType == "cdrom" {
-			templateParams.CloudInitCDRom = fmt.Sprintf(`
-				<disk type="file" device="cdrom">
-					<driver name="qemu" type="raw"/>
-					<source file="%s"></source>
-					<target dev="sda" bus="sata"/>
-					<readonly/>
-				</disk>
-			`, v.cloudInitArgs)
-		}
+		templateParams.CloudInitCDRom = fmt.Sprintf(`
+			<disk type="file" device="cdrom">
+				<driver name="qemu" type="raw"/>
+				<source file="%s"></source>
+				<target dev="sda" bus="sata"/>
+				<readonly/>
+			</disk>
+		`, v.cloudInitArgs)
 	}
 
 	err = tmpl.Execute(&domainXMLBuf, templateParams)
