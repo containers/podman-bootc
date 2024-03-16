@@ -52,8 +52,8 @@ func NewVMById(imageID string) (vm *BootcVMLinux, err error) {
 	return &BootcVMLinux{
 		domain: domain,
 		BootcVMCommon: BootcVMCommon{
-			vmName: name,
-			imageID: imageID,
+			vmName:    name,
+			imageID:   imageID,
 			directory: directory,
 		},
 	}, nil
@@ -79,12 +79,15 @@ func NewVM(params BootcVMParameters) (*BootcVMLinux, error) {
 			cmd:           params.Cmd,
 			pidFile:       filepath.Join(params.Directory, config.RunPidFile),
 			imageID:       params.ImageID,
+			hasCloudInit:  params.CloudInitData,
+			cloudInitDir:  params.CloudInitDir,
 		},
 	}, nil
 }
 
 func (v *BootcVMLinux) Run() (err error) {
 	fmt.Printf("Creating VM %s\n", v.name)
+
 	conn, err := libvirt.NewConnect("qemu:///session")
 	if err != nil {
 		return
@@ -123,11 +126,13 @@ func (v *BootcVMLinux) parseDomainTemplate() (domainXML string, err error) {
 	var domainXMLBuf bytes.Buffer
 
 	type TemplateParams struct {
-		DiskImagePath string
-		Port          string
-		PIDFile       string
-		SMBios        string
-		Name          string
+		DiskImagePath   string
+		Port            string
+		PIDFile         string
+		SMBios          string
+		Name            string
+		CloudInitCDRom  string
+		CloudInitSMBios string
 	}
 
 	templateParams := TemplateParams{
@@ -148,6 +153,22 @@ func (v *BootcVMLinux) parseDomainTemplate() (domainXML string, err error) {
 			<qemu:arg value='-smbios'/>
 			<qemu:arg value='%s'/>
 		`, smbiosCmd)
+	}
+
+	err = v.ParseCloudInit()
+	if err != nil {
+		return "", fmt.Errorf("unable to set cloud-init: %w", err)
+	}
+
+	if v.hasCloudInit {
+		templateParams.CloudInitCDRom = fmt.Sprintf(`
+			<disk type="file" device="cdrom">
+				<driver name="qemu" type="raw"/>
+				<source file="%s"></source>
+				<target dev="sda" bus="sata"/>
+				<readonly/>
+			</disk>
+		`, v.cloudInitArgs)
 	}
 
 	err = tmpl.Execute(&domainXMLBuf, templateParams)
@@ -180,7 +201,7 @@ func (v *BootcVMLinux) waitForVMToBeRunning() error {
 	return fmt.Errorf("VM did not start in %s seconds", timeout)
 }
 
-//Delete the VM definition
+// Delete the VM definition
 func (v *BootcVMLinux) Delete() error {
 	domainExists, err := v.Exists()
 	if err != nil {

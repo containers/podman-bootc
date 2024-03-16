@@ -17,8 +17,6 @@ import (
 
 type BootcVMMac struct {
 	BootcVMCommon
-	ciPort int
-	ciData bool
 }
 
 func NewVMById(id string) (vm *BootcVMMac, err error) {
@@ -48,8 +46,8 @@ func NewVM(params BootcVMParameters) (*BootcVMMac, error) {
 			cmd:           params.Cmd,
 			pidFile:       filepath.Join(params.Directory, config.RunPidFile),
 			imageID:       params.ImageID,
-			imageDigest:   params.ImageDigest,
-			ciData:        params.CloudInitData,
+			hasCloudInit:  params.CloudInitData,
+			cloudInitDir:  params.CloudInitDir,
 		},
 	}, nil
 }
@@ -70,17 +68,14 @@ func (b *BootcVMMac) Run() error {
 	vmDiskImage := filepath.Join(b.directory, config.DiskImage)
 	driveCmd := fmt.Sprintf("if=virtio,format=raw,file=%s", vmDiskImage)
 	args = append(args, "-drive", driveCmd)
-	if b.ciData {
-		if b.ciPort != -1 {
-			// http cloud init data transport
-			// FIXME: this IP address is qemu specific, it should be configurable.
-			smbiosCmd := fmt.Sprintf("type=1,serial=ds=nocloud;s=http://10.0.2.2:%d/", b.ciPort)
-			args = append(args, "-smbios", smbiosCmd)
-		} else {
-			// cdrom cloud init data transport
-			ciDataIso := filepath.Join(b.directory, config.CiDataIso)
-			args = append(args, "-cdrom", ciDataIso)
-		}
+
+	err := b.ParseCloudInit()
+	if err != nil {
+		return err
+	}
+
+	if b.hasCloudInit {
+		args = append(args, "-cdrom", b.cloudInitArgs)
 	}
 
 	if b.sshIdentity != "" {
