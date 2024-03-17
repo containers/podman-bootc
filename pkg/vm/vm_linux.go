@@ -3,6 +3,7 @@ package vm
 import (
 	"bytes"
 	_ "embed"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"podman-bootc/pkg/config"
@@ -40,8 +41,9 @@ func NewVMById(imageID string) (vm *BootcVMLinux, err error) {
 
 	name := vmName(imageID)
 	domain, err := conn.LookupDomainByName(name)
-	if err != nil {
-		logrus.Warnf("unable to find domain %s: %v", name, err)
+	// let's ignore the error if the domain is undefined
+	if err != nil && !errors.Is(err, libvirt.ERR_NO_DOMAIN) {
+		return
 	}
 
 	directory, err := config.BootcImagePath(imageID)
