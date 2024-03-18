@@ -5,12 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
-
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/utils"
 
-	streamarch "github.com/coreos/stream-metadata-go/arch"
 	"github.com/sirupsen/logrus"
 )
 
@@ -167,21 +164,13 @@ func (v *BootcVMMac) Exists() (bool, error) {
 }
 
 func (b *BootcVMMac) createQemuCommand() *exec.Cmd {
-	var path string
-	args := []string{}
 	podmanqemuPath := "/opt/podman/qemu"
-	if runtime.GOOS == "darwin" {
-		path = podmanqemuPath + "/bin/qemu-system-aarch64"
-		args = append(args,
-			"-accel", "hvf",
-			"-cpu", "host",
-			"-M", "virt,highmem=on",
-			"-drive", "file="+podmanqemuPath+"/share/qemu/edk2-aarch64-code.fd"+",if=pflash,format=raw,readonly=on",
-		)
-	} else {
-		arch := streamarch.CurrentRpmArch()
-		path = "qemu-system-" + arch
-		args = append(args, "-accel", "kvm")
+	path := podmanqemuPath + "/bin/qemu-system-aarch64"
+	args := []string{
+		"-accel", "hvf",
+		"-cpu", "host",
+		"-M", "virt,highmem=on",
+		"-drive", "file=" + podmanqemuPath + "/share/qemu/edk2-aarch64-code.fd" + ",if=pflash,format=raw,readonly=on",
 	}
 	return exec.Command(path, args...)
 }
