@@ -1,10 +1,12 @@
 package vm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/utils"
 
@@ -85,7 +87,11 @@ func (b *BootcVMMac) Run() error {
 		args = append(args, "-smbios", smbiosCmd)
 	}
 
-	cmd := b.createQemuCommand()
+	cmd, err := b.createQemuCommand()
+	if err != nil {
+		return err
+	}
+
 	cmd.Args = append(cmd.Args, args...)
 	logrus.Debugf("Executing: %v", cmd.Args)
 	cmd.Stdout = os.Stdout
@@ -163,14 +169,33 @@ func (v *BootcVMMac) Exists() (bool, error) {
 	return utils.FileExists(v.pidFile)
 }
 
-func (b *BootcVMMac) createQemuCommand() *exec.Cmd {
-	podmanqemuPath := "/opt/podman/qemu"
-	path := podmanqemuPath + "/bin/qemu-system-aarch64"
+func (b *BootcVMMac) createQemuCommand() (*exec.Cmd, error) {
+	qemuInstallPath, err := getQemuInstallPath()
+	if err != nil {
+		return nil, err
+	}
+
+	path := qemuInstallPath + "/bin/qemu-system-aarch64"
 	args := []string{
 		"-accel", "hvf",
 		"-cpu", "host",
 		"-M", "virt,highmem=on",
-		"-drive", "file=" + podmanqemuPath + "/share/qemu/edk2-aarch64-code.fd" + ",if=pflash,format=raw,readonly=on",
+		"-drive", "file=" + qemuInstallPath + "/share/qemu/edk2-aarch64-code.fd" + ",if=pflash,format=raw,readonly=on",
 	}
-	return exec.Command(path, args...)
+	return exec.Command(path, args...), nil
+}
+
+// Search for a qemu binary, let's check if is shipped with podman v4
+// or if it's installed using homebrew.
+// This function will no longer be necessary as soon as we use libvirt on macos.
+func getQemuInstallPath() (string, error) {
+	dirs := []string{"/opt/homebrew", "/opt/podman/qemu"}
+	for _, d := range dirs {
+		qemuBinary := filepath.Join(d, "bin/qemu-system-aarch64")
+		if _, err := os.Stat(qemuBinary); err == nil {
+			return d, nil
+		}
+	}
+
+	return "", errors.New("QEMU binary not found")
 }
