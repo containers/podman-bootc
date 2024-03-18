@@ -305,6 +305,11 @@ func (p *BootcDisk) createInstallContainer() (createResponse types.ContainerCrea
 	autoRemove := true
 	labelNested := true
 
+	targetEnv := make(map[string]string)
+	if v, ok := os.LookupEnv("BOOTC_INSTALL_LOG"); ok {
+		targetEnv["RUST_LOG"] = v
+	}
+
 	s := &specgen.SpecGenerator{
 		ContainerBasicConfig: specgen.ContainerBasicConfig{
 			Command: []string{
@@ -314,6 +319,7 @@ func (p *BootcDisk) createInstallContainer() (createResponse types.ContainerCrea
 			PidNS:       specgen.Namespace{NSMode: specgen.Host},
 			Remove:      &autoRemove,
 			Annotations: map[string]string{"io.podman.annotations.label": "type:unconfined_t"},
+			Env:         targetEnv,
 		},
 		ContainerStorageConfig: specgen.ContainerStorageConfig{
 			Image: p.Image,
