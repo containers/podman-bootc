@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"podman-bootc/pkg/config"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -64,9 +65,16 @@ type BootcVMCommon struct {
 	cloudInitArgs string
 }
 
+type BootcVMConfig struct {
+	SshPort     int    `json:"SshPort"`
+	SshIdentity string `json:"SshPriKey"`
+	Repository  string `json:"Image"`
+	Tag         string `json:"Tag"`
+}
+
 // writeConfig writes the configuration for the VM to the disk
-func (v BootcVMCommon) WriteConfig() error {
-	bcConfig := config.BcVmConfig{SshPort: v.sshPort, SshIdentity: v.sshIdentity}
+func (v *BootcVMCommon) WriteConfig() error {
+	bcConfig := BootcVMConfig{SshPort: v.sshPort, SshIdentity: v.sshIdentity}
 	bcConfigMsh, err := json.Marshal(bcConfig)
 	if err != nil {
 		return fmt.Errorf("marshal config data: %w", err)
@@ -80,7 +88,60 @@ func (v BootcVMCommon) WriteConfig() error {
 
 }
 
-func (v BootcVMCommon) WaitForSSHToBeReady() error {
+func (v *BootcVMCommon) loadConfig() (err error) {
+	vmPath, err := v.bootcImagePath(v.imageID)
+	if err != nil {
+		return
+	}
+
+	cfgFile := filepath.Join(vmPath, config.CfgFile)
+	fileContent, err := os.ReadFile(cfgFile)
+	if err != nil {
+		return
+	}
+
+	cfg := new(BootcVMConfig)
+	if err = json.Unmarshal(fileContent, cfg); err != nil {
+		return
+	}
+	
+	v.sshPort = cfg.SshPort
+	v.sshIdentity = cfg.SshIdentity
+	v.directory = vmPath
+
+	return
+}
+
+func (v *BootcVMCommon) bootcImagePath(id string) (string, error) {
+	files, err := os.ReadDir(config.CacheDir)
+	if err != nil {
+		return "", err
+	}
+
+	imageId := ""
+	for _, f := range files {
+		if f.IsDir() && strings.HasPrefix(f.Name(), id) {
+			imageId = f.Name()
+		}
+	}
+
+	if imageId == "" {
+		return "", fmt.Errorf("local installation '%s' does not exists", id)
+	}
+
+	return filepath.Join(config.CacheDir, imageId), nil
+}
+
+func (v *BootcVMCommon) SetUser(user string) error {
+	if user == "" {
+		return fmt.Errorf("user is required")
+	}
+
+	v.user = user
+	return nil
+}
+
+func (v *BootcVMCommon) WaitForSSHToBeReady() error {
 	fmt.Println("Waiting for SSH to be ready")
 	timeout := 60 * time.Second
 	elapsed := 0 * time.Second
@@ -120,7 +181,7 @@ func (v BootcVMCommon) WaitForSSHToBeReady() error {
 }
 
 // RunSSH runs a command over ssh or starts an interactive ssh connection if no command is provided
-func (v BootcVMCommon) RunSSH(inputArgs []string) error {
+func (v *BootcVMCommon) RunSSH(inputArgs []string) error {
 	sshDestination := v.user + "@localhost"
 	port := strconv.Itoa(v.sshPort)
 
@@ -137,6 +198,8 @@ func (v BootcVMCommon) RunSSH(inputArgs []string) error {
 
 	cmd := exec.Command("ssh", args...)
 
+	logrus.Debugf("Running ssh command: %s", cmd.String())
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -145,11 +208,11 @@ func (v BootcVMCommon) RunSSH(inputArgs []string) error {
 }
 
 // Delete removes the VM disk image and the VM configuration from the podman-bootc cache
-func (v BootcVMCommon) DeleteFromCache() error {
+func (v *BootcVMCommon) DeleteFromCache() error {
 	return os.RemoveAll(v.directory)
 }
 
-func (b BootcVMCommon) oemString() (string, error) {
+func (b *BootcVMCommon) oemString() (string, error) {
 	tmpFilesCmd, err := b.tmpFileInjectSshKeyEnc()
 	if err != nil {
 		return "", err
@@ -158,7 +221,7 @@ func (b BootcVMCommon) oemString() (string, error) {
 	return oemString, nil
 }
 
-func (b BootcVMCommon) tmpFileInjectSshKeyEnc() (string, error) {
+func (b *BootcVMCommon) tmpFileInjectSshKeyEnc() (string, error) {
 	pubKey, err := os.ReadFile(b.sshIdentity + ".pub")
 	if err != nil {
 		return "", err
