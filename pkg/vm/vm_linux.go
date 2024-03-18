@@ -46,19 +46,20 @@ func NewVMById(imageID string) (vm *BootcVMLinux, err error) {
 		return
 	}
 
-	directory, err := config.BootcImagePath(imageID)
-	if err != nil {
-		return
-	}
-
-	return &BootcVMLinux{
+	vm = &BootcVMLinux{
 		domain: domain,
 		BootcVMCommon: BootcVMCommon{
 			vmName:    name,
 			imageID:   imageID,
-			directory: directory,
 		},
-	}, nil
+	}
+
+	err = vm.loadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("unable to load VM config: %w", err)
+	}
+
+	return vm, nil
 }
 
 func NewVM(params BootcVMParameters) (*BootcVMLinux, error) {

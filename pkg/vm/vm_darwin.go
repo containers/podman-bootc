@@ -8,7 +8,6 @@ import (
 	"runtime"
 
 	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/ssh"
 	"podman-bootc/pkg/utils"
 
 	streamarch "github.com/coreos/stream-metadata-go/arch"
@@ -19,17 +18,19 @@ type BootcVMMac struct {
 	BootcVMCommon
 }
 
-func NewVMById(id string) (vm *BootcVMMac, err error) {
-	directory, err := config.BootcImagePath(id)
-	if err != nil {
-		return
+func NewVMById(imageID string) (vm *BootcVMMac, err error) {
+	vm = &BootcVMMac{
+		BootcVMCommon: BootcVMCommon{
+			imageID: imageID,
+		},
 	}
 
-	return &BootcVMMac{
-		BootcVMCommon: BootcVMCommon{
-			directory: directory,
-		},
-	}, nil
+	err = vm.loadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("unable to load VM config: %w", err)
+	}
+
+	return vm, nil
 }
 
 func NewVM(params BootcVMParameters) (*BootcVMMac, error) {
@@ -119,14 +120,8 @@ func (b *BootcVMMac) Shutdown() error {
 	}
 
 	if isRunning {
-		id := b.imageID
-		cfg, err := config.LoadConfig(id)
-		if err != nil {
-			return err
-		}
-
 		poweroff := []string{"poweroff"}
-		return ssh.CommonSSH(b.user, cfg.SshIdentity, id, cfg.SshPort, poweroff)
+		return b.RunSSH(poweroff)
 	} else {
 		logrus.Infof("Unable to shutdown VM. It is not not running.")
 		return nil

@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/ssh"
+	"podman-bootc/pkg/vm"
 
 	"github.com/spf13/cobra"
 )
@@ -23,7 +22,13 @@ func init() {
 
 func doSsh(_ *cobra.Command, args []string) error {
 	id := args[0]
-	cfg, err := config.LoadConfig(id)
+
+	vm, err := vm.NewVMById(id)
+	if err != nil {
+		return err
+	}
+
+	err = vm.SetUser(sshUser)
 	if err != nil {
 		return err
 	}
@@ -32,6 +37,5 @@ func doSsh(_ *cobra.Command, args []string) error {
 	if len(args) > 1 {
 		cmd = args[1:]
 	}
-
-	return ssh.CommonSSH(sshUser, cfg.SshIdentity, id, cfg.SshPort, cmd)
+	return vm.RunSSH(cmd)
 }
