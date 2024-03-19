@@ -1,10 +1,10 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"podman-bootc/pkg/bootc"
-	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
 
@@ -47,10 +47,23 @@ func init() {
 }
 
 func doRun(flags *cobra.Command, args []string) error {
+	machineInfo, err := utils.GetMachineInfo()
+	if err != nil {
+		return err
+	}
+
+	if machineInfo == nil {
+		return errors.New("rootful podman machine is required, please run 'podman machine init --rootful'")
+	}
+
+	if !machineInfo.Rootful {
+		return errors.New("rootful podman machine is required, please run 'podman machine set --rootful'")
+	}
+
 	// create the disk image
 	idOrName := args[0]
-	bootcDisk := bootc.NewBootcDisk(idOrName)
-	err := bootcDisk.Install()
+	bootcDisk := bootc.NewBootcDisk(idOrName, machineInfo)
+	err = bootcDisk.Install()
 
 	if err != nil {
 		return fmt.Errorf("unable to install bootc image: %w", err)
@@ -62,7 +75,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to get free port for SSH: %w", err)
 	}
 
-	sshIdentity := config.MachineSshKeyPriv
+	sshIdentity := machineInfo.SSHIdentityPath
 	background := vmConfig.Background
 	if vmConfig.NoCredentials {
 		sshIdentity = ""

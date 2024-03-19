@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"podman-bootc/pkg/config"
+	"sync"
 	"syscall"
 	"time"
 
-	"sync"
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/utils"
 
 	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/containers/podman/v5/pkg/bindings/containers"
@@ -48,9 +49,9 @@ var (
 	instanceOnce sync.Once
 )
 
-func NewBootcDisk(image string) *BootcDisk {
+func NewBootcDisk(image string, machineInfo *utils.MachineInfo) *BootcDisk {
 	instanceOnce.Do(func() {
-		if _, err := os.Stat(config.MachineSocket); err != nil {
+		if _, err := os.Stat(machineInfo.PodmanSocket); err != nil {
 			logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
 			os.Exit(1)
 			return
@@ -58,8 +59,8 @@ func NewBootcDisk(image string) *BootcDisk {
 
 		ctx, err := bindings.NewConnectionWithIdentity(
 			context.Background(),
-			fmt.Sprintf("unix://%s", config.MachineSocket),
-			config.MachineSshKeyPriv,
+			fmt.Sprintf("unix://%s", machineInfo.PodmanSocket),
+			machineInfo.SSHIdentityPath,
 			true)
 		if err != nil {
 			logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
