@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"podman-bootc/pkg/bootc"
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/user"
 	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
 
@@ -47,7 +49,13 @@ func init() {
 }
 
 func doRun(flags *cobra.Command, args []string) error {
-	machineInfo, err := utils.GetMachineInfo()
+	//get user info who is running the podman bootc command
+	user, err := user.NewUser()
+	if err != nil {
+		return fmt.Errorf("unable to get user: %w", err)
+	}
+
+	machineInfo, err := utils.GetMachineInfo(user)
 	if err != nil {
 		return err
 	}
@@ -62,7 +70,7 @@ func doRun(flags *cobra.Command, args []string) error {
 
 	// create the disk image
 	idOrName := args[0]
-	bootcDisk := bootc.NewBootcDisk(idOrName, machineInfo)
+	bootcDisk := bootc.NewBootcDisk(idOrName, machineInfo, user)
 	err = bootcDisk.Install()
 
 	if err != nil {
@@ -75,36 +83,29 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to get free port for SSH: %w", err)
 	}
 
-	sshIdentity := machineInfo.SSHIdentityPath
-	background := vmConfig.Background
-	if vmConfig.NoCredentials {
-		sshIdentity = ""
-		if !background {
-			fmt.Print("No credentials provided for SSH, using --background by default")
-			background = true
-		}
+	bootcVM, err := vm.NewVM(vm.NewVMParameters{
+		ImageID:    bootcDisk.GetImageId(),
+		User:       user,
+		LibvirtUri: config.LibvirtUri,
+	})
+
+	if err != nil {
+		return fmt.Errorf("unable to initialize VM: %w", err)
 	}
 
 	cmd := args[1:]
-	vmParameters := vm.BootcVMParameters{
-		RemoveVm:      vmConfig.RemoveVm,
-		Background:    background,
-		Directory:     bootcDisk.GetDirectory(),
-		User:          vmConfig.User,
-		Name:          idOrName,
+	err = bootcVM.Run(vm.RunVMParameters{
 		Cmd:           cmd,
-		ImageID:       bootcDisk.GetImageId(),
-		ImageDigest:   bootcDisk.GetDigest(),
 		CloudInitDir:  vmConfig.CloudInitDir,
 		NoCredentials: vmConfig.NoCredentials,
 		CloudInitData: flags.Flags().Changed("cloudinit"),
-		SSHIdentity:   sshIdentity,
+		RemoveVm:      vmConfig.RemoveVm,
+		Background:    vmConfig.Background,
 		SSHPort:       sshPort,
-	}
+		SSHIdentity:   machineInfo.SSHIdentityPath,
+		VMUser:        vmConfig.User,
+	})
 
-	bootcVM, err := vm.NewVM(vmParameters)
-
-	err = bootcVM.Run()
 	if err != nil {
 		return fmt.Errorf("runBootcVM: %w", err)
 	}

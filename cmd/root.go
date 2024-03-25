@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"podman-bootc/pkg/utils"
+	"podman-bootc/pkg/user"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -27,7 +27,13 @@ func preExec(cmd *cobra.Command, args []string) error {
 		}
 		logrus.SetLevel(level)
 	}
-	if err := utils.InitOSCDirs(); err != nil {
+
+	user, err := user.NewUser()
+	if err != nil {
+		return err
+	}
+
+	if err := user.InitOSCDirs(); err != nil {
 		return err
 	}
 	return nil

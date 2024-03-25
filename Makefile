@@ -9,7 +9,7 @@ out_dir:
 	mkdir -p $(output_dir)
 
 test:
-	go test -tags $(build_tags)
+	ginkgo -tags $(build_tags) ./...
 
 clean:
 	rm -f $(output_dir)/*

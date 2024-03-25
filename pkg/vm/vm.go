@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/user"
 	"strconv"
 	"strings"
 	"time"
@@ -16,24 +17,47 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type BootcVMParameters struct {
-	RemoveVm      bool
-	Background    bool
-	Directory     string
-	User          string
-	Name          string
-	Cmd           []string
-	ImageID       string
-	ImageDigest   string
+//getVMCachePath returns the path to the VM cache directory
+func getVMCachePath(imageId string, user user.User) (path string, err error) {
+	files, err := os.ReadDir(user.CacheDir())
+	if err != nil {
+		return "", err
+	}
+
+	fullImageId := ""
+	for _, f := range files {
+		if f.IsDir() && strings.HasPrefix(f.Name(), imageId) {
+			fullImageId = f.Name()
+		}
+	}
+
+	if fullImageId == "" {
+		return "", fmt.Errorf("local installation '%s' does not exists", imageId)
+	}
+
+	return filepath.Join(user.CacheDir(), fullImageId), nil
+}
+
+type NewVMParameters struct {
+	ImageID    string
+	User       user.User //user who is running the podman bootc command
+	LibvirtUri string //linux only
+}
+
+type RunVMParameters struct {
+	VMUser        string //user to use when connecting to the VM
 	CloudInitDir  string
 	NoCredentials bool
 	CloudInitData bool
 	SSHIdentity   string
 	SSHPort       int
+	Cmd           []string
+	RemoveVm      bool
+	Background    bool
 }
 
 type BootcVM interface {
-	Run() error
+	Run(RunVMParameters) error
 	ForceDelete() error
 	Shutdown() error
 	Delete() error
@@ -47,14 +71,14 @@ type BootcVM interface {
 
 type BootcVMCommon struct {
 	vmName        string
-	directory     string
+	cacheDir      string
 	diskImagePath string
-	user          string
+	vmUsername    string
+	user          user.User
 	sshIdentity   string
 	sshPort       int
 	removeVm      bool
 	background    bool
-	name          string
 	cmd           []string
 	pidFile       string
 	imageID       string
@@ -68,7 +92,7 @@ type BootcVMCommon struct {
 type BootcVMConfig struct {
 	SshPort     int    `json:"SshPort"`
 	SshIdentity string `json:"SshPriKey"`
-	Repository  string `json:"Image"`
+	Repository  string `json:"Repository"`
 	Tag         string `json:"Tag"`
 }
 
@@ -79,7 +103,7 @@ func (v *BootcVMCommon) WriteConfig() error {
 	if err != nil {
 		return fmt.Errorf("marshal config data: %w", err)
 	}
-	cfgFile := filepath.Join(v.directory, config.CfgFile)
+	cfgFile := filepath.Join(v.cacheDir, config.CfgFile)
 	err = os.WriteFile(cfgFile, bcConfigMsh, 0660)
 	if err != nil {
 		return fmt.Errorf("write config file: %w", err)
@@ -88,48 +112,22 @@ func (v *BootcVMCommon) WriteConfig() error {
 
 }
 
-func (v *BootcVMCommon) loadConfig() (err error) {
-	vmPath, err := v.bootcImagePath(v.imageID)
-	if err != nil {
-		return
-	}
-
-	cfgFile := filepath.Join(vmPath, config.CfgFile)
+func (v *BootcVMCommon) loadConfig() (cfg *BootcVMConfig, err error) {
+	cfgFile := filepath.Join(v.cacheDir, config.CfgFile)
 	fileContent, err := os.ReadFile(cfgFile)
 	if err != nil {
 		return
 	}
 
-	cfg := new(BootcVMConfig)
+	cfg = new(BootcVMConfig)
 	if err = json.Unmarshal(fileContent, cfg); err != nil {
 		return
 	}
-	
+
 	v.sshPort = cfg.SshPort
 	v.sshIdentity = cfg.SshIdentity
-	v.directory = vmPath
 
 	return
-}
-
-func (v *BootcVMCommon) bootcImagePath(id string) (string, error) {
-	files, err := os.ReadDir(config.CacheDir)
-	if err != nil {
-		return "", err
-	}
-
-	imageId := ""
-	for _, f := range files {
-		if f.IsDir() && strings.HasPrefix(f.Name(), id) {
-			imageId = f.Name()
-		}
-	}
-
-	if imageId == "" {
-		return "", fmt.Errorf("local installation '%s' does not exists", id)
-	}
-
-	return filepath.Join(config.CacheDir, imageId), nil
 }
 
 func (v *BootcVMCommon) SetUser(user string) error {
@@ -137,7 +135,7 @@ func (v *BootcVMCommon) SetUser(user string) error {
 		return fmt.Errorf("user is required")
 	}
 
-	v.user = user
+	v.vmUsername = user
 	return nil
 }
 
@@ -157,7 +155,7 @@ func (v *BootcVMCommon) WaitForSSHToBeReady() error {
 	}
 
 	config := &ssh.ClientConfig{
-		User: v.user,
+		User: v.vmUsername,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeys(signer),
 		},
@@ -182,7 +180,15 @@ func (v *BootcVMCommon) WaitForSSHToBeReady() error {
 
 // RunSSH runs a command over ssh or starts an interactive ssh connection if no command is provided
 func (v *BootcVMCommon) RunSSH(inputArgs []string) error {
-	sshDestination := v.user + "@localhost"
+	cfg, err := v.loadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load VM config: %w", err)
+	}
+
+	v.sshPort = cfg.SshPort
+	v.sshIdentity = cfg.SshIdentity
+
+	sshDestination := v.vmUsername + "@localhost"
 	port := strconv.Itoa(v.sshPort)
 
 	args := []string{"-i", v.sshIdentity, "-p", port, sshDestination,
@@ -193,7 +199,7 @@ func (v *BootcVMCommon) RunSSH(inputArgs []string) error {
 	if len(inputArgs) > 0 {
 		args = append(args, inputArgs...)
 	} else {
-		fmt.Printf("Connecting to vm %s. To close connection, use `~.` or `exit`\n", v.name)
+		fmt.Printf("Connecting to vm %s. To close connection, use `~.` or `exit`\n", v.imageID)
 	}
 
 	cmd := exec.Command("ssh", args...)
@@ -209,7 +215,7 @@ func (v *BootcVMCommon) RunSSH(inputArgs []string) error {
 
 // Delete removes the VM disk image and the VM configuration from the podman-bootc cache
 func (v *BootcVMCommon) DeleteFromCache() error {
-	return os.RemoveAll(v.directory)
+	return os.RemoveAll(v.cacheDir)
 }
 
 func (b *BootcVMCommon) oemString() (string, error) {
@@ -229,11 +235,11 @@ func (b *BootcVMCommon) tmpFileInjectSshKeyEnc() (string, error) {
 	pubKeyEnc := base64.StdEncoding.EncodeToString(pubKey)
 
 	userHomeDir := "/root"
-	if b.user != "root" {
-		userHomeDir = filepath.Join("/home", b.user)
+	if b.vmUsername != "root" {
+		userHomeDir = filepath.Join("/home", b.vmUsername)
 	}
 
-	tmpFileCmd := fmt.Sprintf("d %[1]s/.ssh 0750 %[2]s %[2]s -\nf+~ %[1]s/.ssh/authorized_keys 700 %[2]s %[2]s - %[3]s", userHomeDir, b.user, pubKeyEnc)
+	tmpFileCmd := fmt.Sprintf("d %[1]s/.ssh 0750 %[2]s %[2]s -\nf+~ %[1]s/.ssh/authorized_keys 700 %[2]s %[2]s - %[3]s", userHomeDir, b.vmUsername, pubKeyEnc)
 
 	tmpFileCmdEnc := base64.StdEncoding.EncodeToString([]byte(tmpFileCmd))
 	return tmpFileCmdEnc, nil

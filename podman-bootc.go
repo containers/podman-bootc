@@ -9,18 +9,27 @@ import (
 	"podman-bootc/pkg/bootc"
 	"podman-bootc/pkg/utils"
 
+	"podman-bootc/pkg/user"
+
 	"github.com/sirupsen/logrus"
 )
 
 func cleanup() {
-	machineInfo, err := utils.GetMachineInfo()
+	user, err := user.NewUser()
+	if err != nil {
+		logrus.Errorf("unable to get user info: %s", err)
+		os.Exit(0)
+	}
+
+	machineInfo, err := utils.GetMachineInfo(user)
 	if err != nil {
 		logrus.Errorf("unable to get podman machine info: %s", err)
 		os.Exit(0)
 	}
 
-	if err := bootc.NewBootcDisk("", machineInfo).Cleanup(); err != nil {
-		logrus.Errorf("unable to cleanup bootc image: %s", err)
+	err = bootc.NewBootcDisk("", machineInfo, user).Cleanup()
+	if err != nil {
+		logrus.Errorf("unable to get podman machine info: %s", err)
 		os.Exit(0)
 	}
 }

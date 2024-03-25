@@ -14,6 +14,8 @@ import (
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/utils"
 
+	"podman-bootc/pkg/user"
+
 	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/containers/podman/v5/pkg/bindings/containers"
 	"github.com/containers/podman/v5/pkg/bindings/images"
@@ -35,6 +37,7 @@ type diskFromContainerMeta struct {
 
 type BootcDisk struct {
 	Image                   string
+	user                    user.User
 	file                    *os.File
 	directory               string
 	digest                  string
@@ -49,7 +52,7 @@ var (
 	instanceOnce sync.Once
 )
 
-func NewBootcDisk(image string, machineInfo *utils.MachineInfo) *BootcDisk {
+func NewBootcDisk(image string, machineInfo *utils.MachineInfo, user user.User) *BootcDisk {
 	instanceOnce.Do(func() {
 		if _, err := os.Stat(machineInfo.PodmanSocket); err != nil {
 			logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
@@ -71,6 +74,7 @@ func NewBootcDisk(image string, machineInfo *utils.MachineInfo) *BootcDisk {
 		instance = &BootcDisk{
 			Image: image,
 			ctx:   ctx,
+			user:  user,
 		}
 	})
 	return instance
@@ -218,7 +222,7 @@ func (p *BootcDisk) pullImage() (err error) {
 	p.digest = imageId
 
 	// Create VM cache dir; one per oci bootc image
-	p.directory = filepath.Join(config.CacheDir, imageId)
+	p.directory = filepath.Join(p.user.CacheDir(), imageId)
 	if err := os.MkdirAll(p.directory, os.ModePerm); err != nil {
 		return fmt.Errorf("error while making bootc disk directory: %w", err)
 	}

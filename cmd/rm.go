@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/user"
 	"podman-bootc/pkg/vm"
 
 	"github.com/sirupsen/logrus"
@@ -50,7 +51,16 @@ func doRemove(_ *cobra.Command, args []string) error {
 }
 
 func prune(id string) error {
-	bootcVM, err := vm.NewVMById(id)
+	user, err := user.NewUser()
+	if err != nil {
+		return err
+	}
+
+	bootcVM, err := vm.NewVM(vm.NewVMParameters{
+		ImageID:    id,
+		LibvirtUri: config.LibvirtUri,
+		User:       user,
+	})
 	if err != nil {
 		return fmt.Errorf("unable to get VM %s: %v", id, err)
 	}

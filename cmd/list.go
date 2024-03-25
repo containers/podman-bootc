@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/user"
 	"podman-bootc/pkg/utils"
 
 	"github.com/spf13/cobra"
@@ -38,16 +39,21 @@ func doList(_ *cobra.Command, _ []string) error {
 }
 
 func collectVmInfo() (map[string]string, error) {
+	user, err := user.NewUser()
+	if err != nil {
+		return nil, err
+	}
+
 	vmList := make(map[string]string)
 
-	files, err := os.ReadDir(config.CacheDir)
+	files, err := os.ReadDir(user.CacheDir())
 	if err != nil {
 		return nil, err
 	}
 
 	for _, f := range files {
 		if f.IsDir() {
-			vmPidFile := filepath.Join(config.CacheDir, f.Name(), config.RunPidFile)
+			vmPidFile := filepath.Join(user.CacheDir(), f.Name(), config.RunPidFile)
 			pid, _ := utils.ReadPidFile(vmPidFile)
 			pidRep := "-"
 			if pid != -1 && utils.IsProcessAlive(pid) {
