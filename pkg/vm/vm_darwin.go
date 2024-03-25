@@ -41,6 +41,23 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 
 }
 
+func (b *BootcVMMac) GetConfig() (cfg *BootcVMConfig, err error) {
+	cfg, err = b.LoadConfigFile()
+	if err != nil {
+		return
+	}
+
+	vmPidFile := filepath.Join(b.cacheDir, config.RunPidFile)
+	pid, _ := utils.ReadPidFile(vmPidFile)
+	if pid != -1 && utils.IsProcessAlive(pid) {
+		cfg.Running = true
+	} else {
+		cfg.Running = false
+	}
+
+	return
+}
+
 func (b *BootcVMMac) Run(params RunVMParameters) (err error) {
 	b.sshPort = params.SSHPort
 	b.removeVm = params.RemoveVm

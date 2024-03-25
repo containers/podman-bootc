@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"podman-bootc/pkg/bootc"
 	"podman-bootc/pkg/config"
@@ -10,6 +12,8 @@ import (
 	"podman-bootc/pkg/utils"
 	"podman-bootc/pkg/vm"
 
+	"github.com/containers/podman/v5/pkg/bindings"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -55,6 +59,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to get user: %w", err)
 	}
 
+	//podman machine connection
 	machineInfo, err := utils.GetMachineInfo(user)
 	if err != nil {
 		return err
@@ -68,9 +73,24 @@ func doRun(flags *cobra.Command, args []string) error {
 		return errors.New("rootful podman machine is required, please run 'podman machine set --rootful'")
 	}
 
+	if _, err := os.Stat(machineInfo.PodmanSocket); err != nil {
+		logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
+		return err
+	}
+
+	ctx, err := bindings.NewConnectionWithIdentity(
+		context.Background(),
+		fmt.Sprintf("unix://%s", machineInfo.PodmanSocket),
+		machineInfo.SSHIdentityPath,
+		true)
+	if err != nil {
+		logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
+		return err
+	}
+
 	// create the disk image
 	idOrName := args[0]
-	bootcDisk := bootc.NewBootcDisk(idOrName, machineInfo, user)
+	bootcDisk := bootc.NewBootcDisk(idOrName, ctx, user)
 	err = bootcDisk.Install()
 
 	if err != nil {
@@ -111,7 +131,7 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	// write down the config file
-	if err = bootcVM.WriteConfig(); err != nil {
+	if err = bootcVM.WriteConfig(*bootcDisk); err != nil {
 		return err
 	}
 

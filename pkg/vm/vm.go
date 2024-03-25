@@ -7,17 +7,19 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"podman-bootc/pkg/bootc"
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/user"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/docker/go-units"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
-//getVMCachePath returns the path to the VM cache directory
+// getVMCachePath returns the path to the VM cache directory
 func getVMCachePath(imageId string, user user.User) (path string, err error) {
 	files, err := os.ReadDir(user.CacheDir())
 	if err != nil {
@@ -41,7 +43,7 @@ func getVMCachePath(imageId string, user user.User) (path string, err error) {
 type NewVMParameters struct {
 	ImageID    string
 	User       user.User //user who is running the podman bootc command
-	LibvirtUri string //linux only
+	LibvirtUri string    //linux only
 }
 
 type RunVMParameters struct {
@@ -62,11 +64,12 @@ type BootcVM interface {
 	Shutdown() error
 	Delete() error
 	IsRunning() (bool, error)
-	WriteConfig() error
+	WriteConfig(bootc.BootcDisk) error
 	WaitForSSHToBeReady() error
 	RunSSH([]string) error
 	DeleteFromCache() error
 	Exists() (bool, error)
+	GetConfig() (*BootcVMConfig, error)
 }
 
 type BootcVMCommon struct {
@@ -87,18 +90,30 @@ type BootcVMCommon struct {
 	hasCloudInit  bool
 	cloudInitDir  string
 	cloudInitArgs string
+	bootcDisk     bootc.BootcDisk
 }
 
 type BootcVMConfig struct {
+	Id          string `json:"Id,omitempty"`
 	SshPort     int    `json:"SshPort"`
 	SshIdentity string `json:"SshPriKey"`
-	Repository  string `json:"Repository"`
-	Tag         string `json:"Tag"`
+	RepoTag     string `json:"Repository"`
+	Created     string `json:"Created,omitempty"`
+	DiskSize    string `json:"DiskSize,omitempty"`
+	Running     bool   `json:"Running,omitempty"`
 }
 
 // writeConfig writes the configuration for the VM to the disk
-func (v *BootcVMCommon) WriteConfig() error {
-	bcConfig := BootcVMConfig{SshPort: v.sshPort, SshIdentity: v.sshIdentity}
+func (v *BootcVMCommon) WriteConfig(bootcDisk bootc.BootcDisk) error {
+	bcConfig := BootcVMConfig{
+		Id:          v.imageID[0:12],
+		SshPort:     v.sshPort,
+		SshIdentity: v.sshIdentity,
+		RepoTag:     bootcDisk.GetRepoTag(),
+		Created:     bootcDisk.GetCreatedAt().Format(time.RFC3339),
+		DiskSize:    strconv.Itoa(bootcDisk.GetSize()),
+	}
+
 	bcConfigMsh, err := json.Marshal(bcConfig)
 	if err != nil {
 		return fmt.Errorf("marshal config data: %w", err)
@@ -112,7 +127,7 @@ func (v *BootcVMCommon) WriteConfig() error {
 
 }
 
-func (v *BootcVMCommon) loadConfig() (cfg *BootcVMConfig, err error) {
+func (v *BootcVMCommon) LoadConfigFile() (cfg *BootcVMConfig, err error) {
 	cfgFile := filepath.Join(v.cacheDir, config.CfgFile)
 	fileContent, err := os.ReadFile(cfgFile)
 	if err != nil {
@@ -124,8 +139,18 @@ func (v *BootcVMCommon) loadConfig() (cfg *BootcVMConfig, err error) {
 		return
 	}
 
-	v.sshPort = cfg.SshPort
-	v.sshIdentity = cfg.SshIdentity
+	//format the config values for display
+	createdTime, err := time.Parse(time.RFC3339, cfg.Created)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing created time: %w", err)
+	}
+	cfg.Created = units.HumanDuration(time.Since(createdTime)) + " ago"
+
+	diskSizeFloat, err := strconv.ParseFloat(cfg.DiskSize, 64)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing disk size: %w", err)
+	}
+	cfg.DiskSize = units.HumanSizeWithPrecision(diskSizeFloat, 3)
 
 	return
 }
@@ -180,7 +205,7 @@ func (v *BootcVMCommon) WaitForSSHToBeReady() error {
 
 // RunSSH runs a command over ssh or starts an interactive ssh connection if no command is provided
 func (v *BootcVMCommon) RunSSH(inputArgs []string) error {
-	cfg, err := v.loadConfig()
+	cfg, err := v.LoadConfigFile()
 	if err != nil {
 		return fmt.Errorf("failed to load VM config: %w", err)
 	}

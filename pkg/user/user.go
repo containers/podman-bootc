@@ -94,3 +94,18 @@ func (u *User) InitOSCDirs() error {
 
 	return nil
 }
+
+func (u *User) RemoveOSCDirs() error {
+	if err := os.RemoveAll(u.ConfigDir()); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(u.CacheDir()); err != nil {
+		return err
+	}
+
+	if err := os.RemoveAll(u.RunDir()); err != nil {
+		return err
+	}
+
+	return nil
+}
