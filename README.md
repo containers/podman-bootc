@@ -13,9 +13,11 @@ in alignment with the <https://github.com/containers/bootc> project.
 
 Requirements:
 
+- [bootc extension requirements](https://github.com/containers/podman-desktop-extension-bootc?tab=readme-ov-file#requirements)
 - qemu-system-x86_64/qemu-system-aarch64
 - xorriso/osirrox
 - golang
+
 
 To compile it just run in the project directory
 
