@@ -81,7 +81,12 @@ func prune(id string) error {
 }
 
 func pruneAll() error {
-	files, err := os.ReadDir(config.CacheDir)
+	user, err := user.NewUser()
+	if err != nil {
+		return err
+	}
+
+	files, err := os.ReadDir(user.CacheDir())
 	if err != nil {
 		return err
 	}
