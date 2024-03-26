@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"podman-bootc/pkg/config"
 	"strconv"
@@ -27,14 +26,6 @@ type BootcVMLinux struct {
 
 func vmName(id string) string {
 	return "podman-bootc-" + id[:12]
-}
-
-func getLibvirtUri() string {
-	if os.Getenv("PODMAN_BOOTC_TEST") == "true" {
-		return "test:///default"
-	} else {
-		return "qemu:///session"
-	}
 }
 
 func NewVM(params NewVMParameters) (vm *BootcVMLinux, err error) {
@@ -62,7 +53,26 @@ func NewVM(params NewVMParameters) (vm *BootcVMLinux, err error) {
 		},
 	}
 
+	err = vm.loadExistingDomain()
+	if err != nil {
+		return vm, fmt.Errorf("unable to load existing libvirt domain: %w", err)
+	}
+
 	return vm, nil
+}
+
+func (v *BootcVMLinux) GetConfig() (cfg *BootcVMConfig, err error) {
+	cfg, err = v.LoadConfigFile()
+	if err != nil {
+		return
+	}
+
+	cfg.Running, err = v.IsRunning()
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
@@ -207,42 +217,37 @@ func (v *BootcVMLinux) loadExistingDomain() (err error) {
 	}
 
 	//look for existing VM
-	libvirtUri := getLibvirtUri()
-
-	conn, err := libvirt.NewConnect(libvirtUri)
+	conn, err := libvirt.NewConnect(v.libvirtUri)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
 
 	name := vmName(v.imageID)
-	domain, err := conn.LookupDomainByName(name)
-	// allow for domain not found
-	if err != nil && !errors.Is(err, libvirt.ERR_NO_DOMAIN) {
-		return
+	v.domain, err = conn.LookupDomainByName(name)
+	if err != nil {
+		if errors.Is(err, libvirt.ERR_NO_DOMAIN) {
+			logrus.Debugf("VM %s not found", name) // allow for domain not found
+		} else {
+			return
+		}
 	}
 
 	// if domain exists, load it's config
-	if domain != nil {
-		cfg, err := v.loadConfig()
+	if v.domain != nil {
+		cfg, err := v.GetConfig()
 		if err != nil {
 			return fmt.Errorf("unable to load VM config: %w", err)
 		}
 		v.sshPort = cfg.SshPort
 		v.sshIdentity = cfg.SshIdentity
-		v.domain = domain
 	}
 
-	return
+	return nil
 }
 
 // Delete the VM definition
 func (v *BootcVMLinux) Delete() (err error) {
-	err = v.loadExistingDomain()
-	if err != nil {
-		return fmt.Errorf("unable to load existing libvirt domain: %w", err)
-	}
-
 	domainExists, err := v.Exists()
 	if err != nil {
 		return fmt.Errorf("unable to check if VM exists: %w", err)
@@ -264,11 +269,6 @@ func (v *BootcVMLinux) Delete() (err error) {
 
 // Shutdown the VM
 func (v *BootcVMLinux) Shutdown() (err error) {
-	err = v.loadExistingDomain()
-	if err != nil {
-		return fmt.Errorf("unable to load existing libvirt domain: %w", err)
-	}
-
 	//check if domain is running and shut it down
 	isRunning, err := v.IsRunning()
 	if err != nil {
@@ -324,9 +324,8 @@ func (v *BootcVMLinux) Exists() (bool, error) {
 }
 
 func (v *BootcVMLinux) IsRunning() (exists bool, err error) {
-	err = v.loadExistingDomain()
-	if err != nil {
-		return false, fmt.Errorf("unable to load existing libvirt domain: %w", err)
+	if v.domain == nil { // domain hasn't been created yet
+		return false, nil
 	}
 
 	state, _, err := v.domain.GetState()

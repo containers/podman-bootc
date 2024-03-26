@@ -1,15 +1,13 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
-	"strconv"
 
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/user"
-	"podman-bootc/pkg/utils"
+	"podman-bootc/pkg/vm"
 
+	"github.com/containers/common/pkg/report"
 	"github.com/spf13/cobra"
 )
 
@@ -26,26 +24,40 @@ func init() {
 }
 
 func doList(_ *cobra.Command, _ []string) error {
-	vmList, err := collectVmInfo()
+	hdrs := report.Headers(vm.BootcVMConfig{}, map[string]string{
+		"RepoTag":  "Repo",
+		"DiskSize": "Size",
+	})
+
+	rpt := report.New(os.Stdout, "list")
+	defer rpt.Flush()
+
+	rpt, err := rpt.Parse(
+		report.OriginPodman,
+		"{{range . }}{{.Id}}\t{{.RepoTag}}\t{{.DiskSize}}\t{{.Created}}\t{{.Running}}\t{{.SshPort}}\n{{end -}}")
+
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("%-30s \t\t %15s\n", "ID", "VM PID")
-	for name, pid := range vmList {
-		fmt.Printf("%-30s \t\t %10s\n", name, pid)
+	if err := rpt.Execute(hdrs); err != nil {
+		return err
 	}
-	return nil
-}
 
-func collectVmInfo() (map[string]string, error) {
 	user, err := user.NewUser()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	vmList := make(map[string]string)
+	vmList, err := CollectVmList(user, config.LibvirtUri)
+	if err != nil {
+		return err
+	}
 
+	return rpt.Execute(vmList)
+}
+
+func CollectVmList(user user.User, libvirtUri string) (vmList []vm.BootcVMConfig, err error) {
 	files, err := os.ReadDir(user.CacheDir())
 	if err != nil {
 		return nil, err
@@ -53,13 +65,22 @@ func collectVmInfo() (map[string]string, error) {
 
 	for _, f := range files {
 		if f.IsDir() {
-			vmPidFile := filepath.Join(user.CacheDir(), f.Name(), config.RunPidFile)
-			pid, _ := utils.ReadPidFile(vmPidFile)
-			pidRep := "-"
-			if pid != -1 && utils.IsProcessAlive(pid) {
-				pidRep = strconv.Itoa(pid)
+			vm, err := vm.NewVM(vm.NewVMParameters{
+				ImageID:    f.Name(),
+				User:       user,
+				LibvirtUri: libvirtUri,
+			})
+
+			if err != nil {
+				return nil, err
 			}
-			vmList[f.Name()[:12]] = pidRep
+
+			cfg, err := vm.GetConfig()
+			if err != nil {
+				return nil, err
+			}
+
+			vmList = append(vmList, *cfg)
 		}
 	}
 	return vmList, nil

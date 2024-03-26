@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +13,7 @@ import (
 
 	"podman-bootc/pkg/user"
 
+	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/sirupsen/logrus"
 )
 
@@ -21,13 +24,40 @@ func cleanup() {
 		os.Exit(0)
 	}
 
+	//podman machine connection
 	machineInfo, err := utils.GetMachineInfo(user)
 	if err != nil {
 		logrus.Errorf("unable to get podman machine info: %s", err)
-		os.Exit(0)
+		os.Exit(1)
 	}
 
-	err = bootc.NewBootcDisk("", machineInfo, user).Cleanup()
+	if machineInfo == nil {
+		logrus.Errorf("rootful podman machine is required, please run 'podman machine init --rootful'")
+		os.Exit(1)
+	}
+
+	if !machineInfo.Rootful {
+		logrus.Errorf("rootful podman machine is required, please run 'podman machine set --rootful'")
+		os.Exit(1)
+	}
+
+	if _, err := os.Stat(machineInfo.PodmanSocket); err != nil {
+		logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
+		os.Exit(1)
+	}
+
+	ctx, err := bindings.NewConnectionWithIdentity(
+		context.Background(),
+		fmt.Sprintf("unix://%s", machineInfo.PodmanSocket),
+		machineInfo.SSHIdentityPath,
+		true)
+	if err != nil {
+		logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
+		os.Exit(1)
+	}
+
+	//delete the disk image
+	err = bootc.NewBootcDisk("", ctx, user).Cleanup()
 	if err != nil {
 		logrus.Errorf("unable to get podman machine info: %s", err)
 		os.Exit(0)

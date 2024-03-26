@@ -12,11 +12,9 @@ import (
 	"time"
 
 	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/utils"
 
 	"podman-bootc/pkg/user"
 
-	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/containers/podman/v5/pkg/bindings/containers"
 	"github.com/containers/podman/v5/pkg/bindings/images"
 	"github.com/containers/podman/v5/pkg/domain/entities/types"
@@ -36,14 +34,15 @@ type diskFromContainerMeta struct {
 }
 
 type BootcDisk struct {
-	Image                   string
-	user                    user.User
+	ImageNameOrId           string
+	User                    user.User
+	Ctx                     context.Context
+	ImageId                 string
+	RepoTag                 string
+	CreatedAt               time.Time
+	Directory               string
 	file                    *os.File
-	directory               string
-	digest                  string
-	ctx                     context.Context
 	bootcInstallContainerId string
-	imageId                 string
 }
 
 // create singleton for easy cleanup
@@ -52,48 +51,42 @@ var (
 	instanceOnce sync.Once
 )
 
-func NewBootcDisk(image string, machineInfo *utils.MachineInfo, user user.User) *BootcDisk {
+func NewBootcDisk(imageNameOrId string, ctx context.Context, user user.User) *BootcDisk {
 	instanceOnce.Do(func() {
-		if _, err := os.Stat(machineInfo.PodmanSocket); err != nil {
-			logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
-			os.Exit(1)
-			return
-		}
-
-		ctx, err := bindings.NewConnectionWithIdentity(
-			context.Background(),
-			fmt.Sprintf("unix://%s", machineInfo.PodmanSocket),
-			machineInfo.SSHIdentityPath,
-			true)
-		if err != nil {
-			logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
-			os.Exit(1)
-			return
-		}
-
 		instance = &BootcDisk{
-			Image: image,
-			ctx:   ctx,
-			user:  user,
+			ImageNameOrId: imageNameOrId,
+			Ctx:           ctx,
+			User:          user,
 		}
 	})
 	return instance
 }
 
 func (p *BootcDisk) GetDirectory() string {
-	return p.directory
-}
-
-func (p *BootcDisk) GetDigest() string {
-	return p.digest
+	return p.Directory
 }
 
 func (p *BootcDisk) GetImageId() string {
-	return p.imageId
+	return p.ImageId
+}
+
+// GetSize returns the size of the disk in bytes
+func (p *BootcDisk) GetSize() int {
+	return diskSize
+}
+
+// GetRepoTag returns the repository of the container image
+func (p *BootcDisk) GetRepoTag() string {
+	return p.RepoTag
+}
+
+// GetCreatedAt returns the creation time of the disk image
+func (p *BootcDisk) GetCreatedAt() time.Time {
+	return p.CreatedAt
 }
 
 func (p *BootcDisk) Install() (err error) {
-	start := time.Now()
+	p.CreatedAt = time.Now()
 
 	err = p.pullImage()
 	if err != nil {
@@ -105,7 +98,7 @@ func (p *BootcDisk) Install() (err error) {
 		return
 	}
 
-	elapsed := time.Since(start)
+	elapsed := time.Since(p.CreatedAt)
 	logrus.Debugf("installImage elapsed: %v", elapsed)
 
 	return
@@ -114,7 +107,7 @@ func (p *BootcDisk) Install() (err error) {
 func (p *BootcDisk) Cleanup() (err error) {
 	force := true
 	if p.bootcInstallContainerId != "" {
-		_, err := containers.Remove(p.ctx, p.bootcInstallContainerId, &containers.RemoveOptions{Force: &force})
+		_, err := containers.Remove(p.Ctx, p.bootcInstallContainerId, &containers.RemoveOptions{Force: &force})
 		if err != nil {
 			return fmt.Errorf("failed to remove bootc install container: %w", err)
 		}
@@ -125,7 +118,7 @@ func (p *BootcDisk) Cleanup() (err error) {
 
 // getOrInstallImageToDisk checks if the disk is present and if not, installs the image to a new disk
 func (p *BootcDisk) getOrInstallImageToDisk() error {
-	diskPath := filepath.Join(p.directory, config.DiskImage)
+	diskPath := filepath.Join(p.Directory, config.DiskImage)
 	f, err := os.Open(diskPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -148,8 +141,8 @@ func (p *BootcDisk) getOrInstallImageToDisk() error {
 		return p.bootcInstallImageToDisk()
 	}
 
-	logrus.Debugf("previous disk digest: %s current digest: %s", serializedMeta.ImageDigest, p.digest)
-	if serializedMeta.ImageDigest == p.digest {
+	logrus.Debugf("previous disk digest: %s current digest: %s", serializedMeta.ImageDigest, p.ImageId)
+	if serializedMeta.ImageDigest == p.ImageId {
 		return nil
 	}
 
@@ -158,7 +151,7 @@ func (p *BootcDisk) getOrInstallImageToDisk() error {
 
 // bootcInstallImageToDisk creates a disk image from a bootc container
 func (p *BootcDisk) bootcInstallImageToDisk() (err error) {
-	p.file, err = os.CreateTemp(p.directory, "podman-bootc-tempdisk")
+	p.file, err = os.CreateTemp(p.Directory, "podman-bootc-tempdisk")
 	if err != nil {
 		return err
 	}
@@ -177,7 +170,7 @@ func (p *BootcDisk) bootcInstallImageToDisk() (err error) {
 		return fmt.Errorf("failed to create disk image: %w", err)
 	}
 	serializedMeta := diskFromContainerMeta{
-		ImageDigest: p.digest,
+		ImageDigest: p.ImageId,
 	}
 	buf, err := json.Marshal(serializedMeta)
 	if err != nil {
@@ -186,7 +179,7 @@ func (p *BootcDisk) bootcInstallImageToDisk() (err error) {
 	if err := unix.Fsetxattr(int(p.file.Fd()), imageMetaXattr, buf, 0); err != nil {
 		return fmt.Errorf("failed to set xattr: %w", err)
 	}
-	diskPath := filepath.Join(p.directory, config.DiskImage)
+	diskPath := filepath.Join(p.Directory, config.DiskImage)
 
 	if err := os.Rename(p.file.Name(), diskPath); err != nil {
 		return fmt.Errorf("failed to rename to %s: %w", diskPath, err)
@@ -199,7 +192,7 @@ func (p *BootcDisk) bootcInstallImageToDisk() (err error) {
 // pullImage fetches the container image if not present
 func (p *BootcDisk) pullImage() (err error) {
 	pullPolicy := "missing"
-	ids, err := images.Pull(p.ctx, p.Image, &images.PullOptions{Policy: &pullPolicy})
+	ids, err := images.Pull(p.Ctx, p.ImageNameOrId, &images.PullOptions{Policy: &pullPolicy})
 	if err != nil {
 		return fmt.Errorf("failed to pull image: %w", err)
 	}
@@ -212,18 +205,18 @@ func (p *BootcDisk) pullImage() (err error) {
 		return fmt.Errorf("multiple ids returned from image pull")
 	}
 
-	_, err = images.GetImage(p.ctx, p.Image, &images.GetOptions{})
+	image, err := images.GetImage(p.Ctx, p.ImageNameOrId, &images.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get image: %w", err)
 	}
 
 	imageId := ids[0]
-	p.imageId = imageId
-	p.digest = imageId
+	p.ImageId = imageId
+	p.RepoTag = image.RepoTags[0]
 
 	// Create VM cache dir; one per oci bootc image
-	p.directory = filepath.Join(p.user.CacheDir(), imageId)
-	if err := os.MkdirAll(p.directory, os.ModePerm); err != nil {
+	p.Directory = filepath.Join(p.User.CacheDir(), imageId)
+	if err := os.MkdirAll(p.Directory, os.ModePerm); err != nil {
 		return fmt.Errorf("error while making bootc disk directory: %w", err)
 	}
 
@@ -240,7 +233,7 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 	p.bootcInstallContainerId = createResponse.ID //save the id for possible cleanup
 
 	// run the container to create the disk
-	err = containers.Start(p.ctx, p.bootcInstallContainerId, &containers.StartOptions{})
+	err = containers.Start(p.Ctx, p.bootcInstallContainerId, &containers.StartOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
@@ -255,7 +248,7 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 		defer close(stdOut)
 		defer close(stdErr)
 		trueV := true
-		err = containers.Logs(p.ctx, p.bootcInstallContainerId, &containers.LogOptions{Follow: &follow, Stdout: &trueV, Stderr: &trueV}, stdOut, stdErr)
+		err = containers.Logs(p.Ctx, p.bootcInstallContainerId, &containers.LogOptions{Follow: &follow, Stdout: &trueV, Stderr: &trueV}, stdOut, stdErr)
 		if err != nil {
 			logErrors <- err
 		}
@@ -280,7 +273,7 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 	}()
 
 	//wait for the container to finish
-	exitCode, err := containers.Wait(p.ctx, p.bootcInstallContainerId, nil)
+	exitCode, err := containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
 	if err != nil {
 		return fmt.Errorf("failed to wait for container: %w", err)
 	}
@@ -296,11 +289,6 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 		return fmt.Errorf("failed to run bootc install")
 	}
 
-	return
-}
-
-// streamLogs streams the logs from the container to stdout and stderr
-func (p *BootcDisk) streamLogs(containerId string) (err error) {
 	return
 }
 
@@ -327,7 +315,7 @@ func (p *BootcDisk) createInstallContainer() (createResponse types.ContainerCrea
 			Env:         targetEnv,
 		},
 		ContainerStorageConfig: specgen.ContainerStorageConfig{
-			Image: p.Image,
+			Image: p.ImageNameOrId,
 			Mounts: []specs.Mount{
 				{
 					Source:      "/var/lib/containers",
@@ -340,7 +328,7 @@ func (p *BootcDisk) createInstallContainer() (createResponse types.ContainerCrea
 					Type:        "bind",
 				},
 				{
-					Source:      p.directory,
+					Source:      p.Directory,
 					Destination: "/output",
 					Type:        "bind",
 				},
@@ -358,7 +346,7 @@ func (p *BootcDisk) createInstallContainer() (createResponse types.ContainerCrea
 		},
 	}
 
-	createResponse, err = containers.CreateWithSpec(p.ctx, s, &containers.CreateOptions{})
+	createResponse, err = containers.CreateWithSpec(p.Ctx, s, &containers.CreateOptions{})
 	if err != nil {
 		return createResponse, fmt.Errorf("failed to create container: %w", err)
 	}
