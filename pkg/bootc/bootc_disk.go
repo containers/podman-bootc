@@ -85,7 +85,7 @@ func (p *BootcDisk) GetCreatedAt() time.Time {
 	return p.CreatedAt
 }
 
-func (p *BootcDisk) Install() (err error) {
+func (p *BootcDisk) Install(quiet bool) (err error) {
 	p.CreatedAt = time.Now()
 
 	err = p.pullImage()
@@ -93,7 +93,7 @@ func (p *BootcDisk) Install() (err error) {
 		return
 	}
 
-	err = p.getOrInstallImageToDisk()
+	err = p.getOrInstallImageToDisk(quiet)
 	if err != nil {
 		return
 	}
@@ -117,14 +117,14 @@ func (p *BootcDisk) Cleanup() (err error) {
 }
 
 // getOrInstallImageToDisk checks if the disk is present and if not, installs the image to a new disk
-func (p *BootcDisk) getOrInstallImageToDisk() error {
+func (p *BootcDisk) getOrInstallImageToDisk(quiet bool) error {
 	diskPath := filepath.Join(p.Directory, config.DiskImage)
 	f, err := os.Open(diskPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		return p.bootcInstallImageToDisk()
+		return p.bootcInstallImageToDisk(quiet)
 	}
 	defer f.Close()
 	buf := make([]byte, 4096)
@@ -132,13 +132,13 @@ func (p *BootcDisk) getOrInstallImageToDisk() error {
 	if err != nil {
 		// If there's no xattr, just remove it
 		os.Remove(diskPath)
-		return p.bootcInstallImageToDisk()
+		return p.bootcInstallImageToDisk(quiet)
 	}
 	bufTrimmed := buf[:len]
 	var serializedMeta diskFromContainerMeta
 	if err := json.Unmarshal(bufTrimmed, &serializedMeta); err != nil {
 		logrus.Warnf("failed to parse serialized meta from %s (%v) %v", diskPath, buf, err)
-		return p.bootcInstallImageToDisk()
+		return p.bootcInstallImageToDisk(quiet)
 	}
 
 	logrus.Debugf("previous disk digest: %s current digest: %s", serializedMeta.ImageDigest, p.ImageId)
@@ -146,11 +146,12 @@ func (p *BootcDisk) getOrInstallImageToDisk() error {
 		return nil
 	}
 
-	return p.bootcInstallImageToDisk()
+	return p.bootcInstallImageToDisk(quiet)
 }
 
 // bootcInstallImageToDisk creates a disk image from a bootc container
-func (p *BootcDisk) bootcInstallImageToDisk() (err error) {
+func (p *BootcDisk) bootcInstallImageToDisk(quiet bool) (err error) {
+	println("Creating bootc disk image...")
 	p.file, err = os.CreateTemp(p.Directory, "podman-bootc-tempdisk")
 	if err != nil {
 		return err
@@ -165,7 +166,7 @@ func (p *BootcDisk) bootcInstallImageToDisk() (err error) {
 		}
 	}()
 
-	err = p.runInstallContainer()
+	err = p.runInstallContainer(quiet)
 	if err != nil {
 		return fmt.Errorf("failed to create disk image: %w", err)
 	}
@@ -224,7 +225,7 @@ func (p *BootcDisk) pullImage() (err error) {
 }
 
 // runInstallContainer runs the bootc installer in a container to create a disk image
-func (p *BootcDisk) runInstallContainer() (err error) {
+func (p *BootcDisk) runInstallContainer(quiet bool) (err error) {
 	createResponse, err := p.createInstallContainer()
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)
@@ -238,52 +239,62 @@ func (p *BootcDisk) runInstallContainer() (err error) {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	// stream logs to stdout and stderr
-	stdOut := make(chan string)
-	stdErr := make(chan string)
-	logErrors := make(chan error)
-
-	go func() {
-		follow := true
-		defer close(stdOut)
-		defer close(stdErr)
-		trueV := true
-		err = containers.Logs(p.Ctx, p.bootcInstallContainerId, &containers.LogOptions{Follow: &follow, Stdout: &trueV, Stderr: &trueV}, stdOut, stdErr)
+	var exitCode int32
+	if quiet {
+		//wait for the container to finish
+		exitCode, err = containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
 		if err != nil {
-			logErrors <- err
+			return fmt.Errorf("failed to wait for container: %w", err)
+		}
+	} else {
+		// stream logs to stdout and stderr
+		stdOut := make(chan string)
+		stdErr := make(chan string)
+		logErrors := make(chan error)
+
+		var wg sync.WaitGroup
+		go func() {
+			follow := true
+			defer close(stdOut)
+			defer close(stdErr)
+			trueV := true
+			err = containers.Logs(p.Ctx, p.bootcInstallContainerId, &containers.LogOptions{Follow: &follow, Stdout: &trueV, Stderr: &trueV}, stdOut, stdErr)
+			if err != nil {
+				logErrors <- err
+			}
+
+			close(logErrors)
+		}()
+
+		wg.Add(1)
+		go func() {
+			for str := range stdOut {
+				fmt.Print(str)
+			}
+			wg.Done()
+		}()
+
+		wg.Add(1)
+		go func() {
+			for str := range stdErr {
+				fmt.Fprintf(os.Stderr, "%s", str)
+			}
+			wg.Done()
+		}()
+
+		//wait for the container to finish
+		exitCode, err = containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
+		if err != nil {
+			return fmt.Errorf("failed to wait for container: %w", err)
 		}
 
-		close(logErrors)
-	}()
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		for str := range stdOut {
-			fmt.Print(str)
+		if err := <-logErrors; err != nil {
+			return fmt.Errorf("failed to get logs: %w", err)
 		}
-		wg.Done()
-	}()
-	wg.Add(1)
-	go func() {
-		for str := range stdErr {
-			fmt.Fprintf(os.Stderr, "%s", str)
-		}
-		wg.Done()
-	}()
 
-	//wait for the container to finish
-	exitCode, err := containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
-	if err != nil {
-		return fmt.Errorf("failed to wait for container: %w", err)
+		// Ensure the streams are done
+		wg.Wait()
 	}
-
-	if err := <-logErrors; err != nil {
-		return fmt.Errorf("failed to get logs: %w", err)
-	}
-
-	// Ensure the streams are done
-	wg.Wait()
 
 	if exitCode != 0 {
 		return fmt.Errorf("failed to run bootc install")

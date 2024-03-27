@@ -121,7 +121,7 @@ func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 		}
 	}
 
-	fmt.Printf("Creating VM %s\n", v.imageID)
+	logrus.Debugf("Creating VM %s\n", v.imageID)
 
 	domainXML, err := v.parseDomainTemplate()
 	if err != nil {
