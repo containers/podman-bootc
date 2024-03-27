@@ -3,9 +3,11 @@ package vm
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/utils"
@@ -14,6 +16,7 @@ import (
 )
 
 type BootcVMMac struct {
+	socketFile string
 	BootcVMCommon
 }
 
@@ -28,6 +31,7 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 	}
 
 	vm = &BootcVMMac{
+		socketFile: filepath.Join(params.User.CacheDir(), params.ImageID[:12]+"-console.sock"),
 		BootcVMCommon: BootcVMCommon{
 			imageID:       params.ImageID,
 			cacheDir:      cacheDir,
@@ -39,6 +43,38 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 
 	return vm, nil
 
+}
+
+func (b *BootcVMMac) CloseConnection() {
+	return //no-op when using qemu
+}
+
+func (b *BootcVMMac) PrintConsole() (err error) {
+	//qemu seems to asynchronously create the socket file
+	//so this will wait up to a few seconds for socket to be created
+	socketCreationTimeout := 5 * time.Second
+	elapsed := 0 * time.Millisecond
+	interval := 100 * time.Millisecond
+	for elapsed < socketCreationTimeout {
+		time.Sleep(interval) //always sleep a little bit at the start
+		elapsed += interval
+		if _, err = os.Stat(b.socketFile); err == nil {
+			break
+		}
+	}
+
+	c, err := net.Dial("unix", b.socketFile)
+	if err != nil {
+		return fmt.Errorf("error connecting to socket %s", err)
+	}
+	for {
+		buf := make([]byte, 8192)
+		_, err := c.Read(buf)
+		if err != nil {
+			return fmt.Errorf("error reading socket %s", err)
+		}
+		print(string(buf))
+	}
 }
 
 func (b *BootcVMMac) GetConfig() (cfg *BootcVMConfig, err error) {
@@ -77,6 +113,9 @@ func (b *BootcVMMac) Run(params RunVMParameters) (err error) {
 	}
 
 	var args []string
+	args = append(args, "-display", "none")
+	args = append(args, "-chardev", fmt.Sprintf("socket,id=char0,server=on,wait=off,path=%s", b.socketFile), "-serial", "chardev:char0")
+
 	args = append(args, "-cpu", "host")
 	args = append(args, "-m", "2G")
 	args = append(args, "-smp", "2")

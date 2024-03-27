@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
+	"time"
 
 	"podman-bootc/pkg/bootc"
 	"podman-bootc/pkg/config"
@@ -98,6 +100,7 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	//start the VM
+	println("Booting the VM...")
 	sshPort, err := utils.GetFreeLocalTcpPort()
 	if err != nil {
 		return fmt.Errorf("unable to get free port for SSH: %w", err)
@@ -112,6 +115,8 @@ func doRun(flags *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("unable to initialize VM: %w", err)
 	}
+
+	defer bootcVM.CloseConnection()
 
 	cmd := args[1:]
 	err = bootcVM.Run(vm.RunVMParameters{
@@ -136,14 +141,30 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	if !vmConfig.Background {
-		// wait for VM
-		//time.Sleep(5 * time.Second) // just for now
+		var vmConsoleWg sync.WaitGroup
+		vmConsoleWg.Add(1)
+		go func() {
+			bootcVM.PrintConsole()
+		}()
+
 		err = bootcVM.WaitForSSHToBeReady()
 		if err != nil {
 			return fmt.Errorf("WaitSshReady: %w", err)
 		}
 
-		// ssh into it
+		vmConsoleWg.Done() //stop printing the VM console when SSH is ready
+
+		// the PrintConsole routine is suddenly stopped without waiting for
+		// the print buffer to be flushed, this can lead to the consoel output
+		// printing after the ssh prompt begins. Sleeping for a second
+		// should prevent this from happening on most systems.
+		//
+		// The libvirt console stream API blocks while waiting for data, so
+		// cleanly stopping the routing via a channel is not possible.
+		time.Sleep(1 * time.Second)
+
+		// ssh into the VM
+		println("\nLogging in via SSH")
 		err = bootcVM.RunSSH(cmd)
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)

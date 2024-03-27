@@ -80,6 +80,8 @@ func CollectVmList(user user.User, libvirtUri string) (vmList []vm.BootcVMConfig
 				return nil, err
 			}
 
+			vm.CloseConnection()
+
 			vmList = append(vmList, *cfg)
 		}
 	}

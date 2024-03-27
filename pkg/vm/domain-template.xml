@@ -17,7 +17,7 @@
     <boot dev="hd"></boot>
   </os>
   <devices>
-    <!-- disk -->
+    <serial type="pty" />
     <disk device="disk" type="file">
       <driver name="qemu" type="raw"></driver>
       <source file="{{.DiskImagePath}}"></source>

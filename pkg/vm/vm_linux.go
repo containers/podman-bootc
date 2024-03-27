@@ -21,6 +21,7 @@ var domainTemplate string
 type BootcVMLinux struct {
 	domain     *libvirt.Domain
 	libvirtUri string
+	libvirtConnection *libvirt.Connect
 	BootcVMCommon
 }
 
@@ -75,6 +76,33 @@ func (v *BootcVMLinux) GetConfig() (cfg *BootcVMConfig, err error) {
 	return
 }
 
+func (v *BootcVMLinux) PrintConsole() (err error) {
+	stream, err := v.libvirtConnection.NewStream(libvirt.StreamFlags(0))
+	if err != nil {
+		return fmt.Errorf("unable to create console stream: %w", err)
+	}
+
+	err = v.domain.OpenConsole("serial0", stream, libvirt.DOMAIN_CONSOLE_FORCE)
+	if err != nil {
+		return fmt.Errorf("unable to open console: %w", err)
+	}
+
+	for {
+		streamBytes := make([]byte, 8192)
+		got, err := stream.Recv(streamBytes)
+		if err != nil {
+			return fmt.Errorf("unable to receive console output: %w", err)
+		}
+		if got <= 0 {
+			break
+		}
+
+		print(string(streamBytes))
+	}
+
+	return
+}
+
 func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 	v.sshPort = params.SSHPort
 	v.removeVm = params.RemoveVm
@@ -94,11 +122,6 @@ func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 	}
 
 	fmt.Printf("Creating VM %s\n", v.imageID)
-	conn, err := libvirt.NewConnect(v.libvirtUri)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
 
 	domainXML, err := v.parseDomainTemplate()
 	if err != nil {
@@ -107,7 +130,7 @@ func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 
 	logrus.Debugf("domainXML: %s", domainXML)
 
-	v.domain, err = conn.DomainDefineXMLFlags(domainXML, libvirt.DOMAIN_DEFINE_VALIDATE)
+	v.domain, err = v.libvirtConnection.DomainDefineXMLFlags(domainXML, libvirt.DOMAIN_DEFINE_VALIDATE)
 	if err != nil {
 		return fmt.Errorf("unable to define virtual machine domain: %w", err)
 	}
@@ -209,6 +232,10 @@ func (v *BootcVMLinux) waitForVMToBeRunning() error {
 	return fmt.Errorf("VM did not start in %s seconds", timeout)
 }
 
+func (v *BootcVMLinux) CloseConnection() {
+	v.libvirtConnection.Close()
+}
+
 // loadExistingDomain loads the existing domain and it's config, no-op if domain is already loaded
 func (v *BootcVMLinux) loadExistingDomain() (err error) {
 	//check if domain is already loaded
@@ -217,14 +244,13 @@ func (v *BootcVMLinux) loadExistingDomain() (err error) {
 	}
 
 	//look for existing VM
-	conn, err := libvirt.NewConnect(v.libvirtUri)
+	v.libvirtConnection, err = libvirt.NewConnect(v.libvirtUri)
 	if err != nil {
 		return
 	}
-	defer conn.Close()
 
 	name := vmName(v.imageID)
-	v.domain, err = conn.LookupDomainByName(name)
+	v.domain, err = v.libvirtConnection.LookupDomainByName(name)
 	if err != nil {
 		if errors.Is(err, libvirt.ERR_NO_DOMAIN) {
 			logrus.Debugf("VM %s not found", name) // allow for domain not found
@@ -301,14 +327,11 @@ func (v *BootcVMLinux) ForceDelete() (err error) {
 }
 
 func (v *BootcVMLinux) Exists() (bool, error) {
-	conn, err := libvirt.NewConnect(v.libvirtUri)
-	if err != nil {
-		return false, err
-	}
-	defer conn.Close()
-
 	var flags libvirt.ConnectListAllDomainsFlags
-	domains, err := conn.ListAllDomains(flags)
+	domains, err := v.libvirtConnection.ListAllDomains(flags)
+	if err != nil {
+		return false, fmt.Errorf("unable to list all domains: %w", err)
+	}
 	for _, domain := range domains {
 		name, err := domain.GetName()
 		if err != nil {
