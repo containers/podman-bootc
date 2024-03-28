@@ -40,6 +40,8 @@ func doSsh(_ *cobra.Command, args []string) error {
 		return err
 	}
 
+	defer vm.CloseConnection()
+
 	err = vm.SetUser(sshUser)
 	if err != nil {
 		return err

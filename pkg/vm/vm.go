@@ -70,6 +70,8 @@ type BootcVM interface {
 	DeleteFromCache() error
 	Exists() (bool, error)
 	GetConfig() (*BootcVMConfig, error)
+	CloseConnection()
+	PrintConsole() (error)
 }
 
 type BootcVMCommon struct {
@@ -165,9 +167,9 @@ func (v *BootcVMCommon) SetUser(user string) error {
 }
 
 func (v *BootcVMCommon) WaitForSSHToBeReady() error {
-	fmt.Println("Waiting for SSH to be ready")
-	timeout := 60 * time.Second
-	elapsed := 0 * time.Second
+	timeout := 1 * time.Minute
+	elapsed := 0 * time.Millisecond
+	interval := 500 * time.Millisecond
 
 	key, err := os.ReadFile(v.sshIdentity)
 	if err != nil {
@@ -192,8 +194,8 @@ func (v *BootcVMCommon) WaitForSSHToBeReady() error {
 		client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", "localhost", v.sshPort), config)
 		if err != nil {
 			logrus.Debugf("failed to connect to SSH server: %s\n", err)
-			time.Sleep(1 * time.Second)
-			elapsed += 1 * time.Second
+			time.Sleep(interval)
+			elapsed += interval
 		} else {
 			client.Close()
 			return nil

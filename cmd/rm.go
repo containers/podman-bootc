@@ -65,6 +65,8 @@ func prune(id string) error {
 		return fmt.Errorf("unable to get VM %s: %v", id, err)
 	}
 
+	defer bootcVM.CloseConnection()
+
 	if force {
 		err := forceKillVM(bootcVM)
 		if err != nil {

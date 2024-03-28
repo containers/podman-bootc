@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
+	"time"
 
 	"podman-bootc/pkg/bootc"
 	"podman-bootc/pkg/config"
@@ -25,6 +27,7 @@ type osVmConfig struct {
 	NoCredentials   bool
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
+	Quiet           bool
 }
 
 var (
@@ -50,6 +53,7 @@ func init() {
 	runCmd.Flags().BoolVar(&vmConfig.NoCredentials, "no-creds", false, "Do not inject default SSH key via credentials; also implies --background")
 	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
 	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Remove the VM and it's disk when the SSH session exits. Cannot be used with --background")
+	runCmd.Flags().BoolVar(&vmConfig.Quiet, "quiet", false, "Suppress output from bootc disk creation and VM boot console")
 }
 
 func doRun(flags *cobra.Command, args []string) error {
@@ -91,13 +95,14 @@ func doRun(flags *cobra.Command, args []string) error {
 	// create the disk image
 	idOrName := args[0]
 	bootcDisk := bootc.NewBootcDisk(idOrName, ctx, user)
-	err = bootcDisk.Install()
+	err = bootcDisk.Install(vmConfig.Quiet)
 
 	if err != nil {
 		return fmt.Errorf("unable to install bootc image: %w", err)
 	}
 
 	//start the VM
+	println("Booting the VM...")
 	sshPort, err := utils.GetFreeLocalTcpPort()
 	if err != nil {
 		return fmt.Errorf("unable to get free port for SSH: %w", err)
@@ -112,6 +117,8 @@ func doRun(flags *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("unable to initialize VM: %w", err)
 	}
+
+	defer bootcVM.CloseConnection()
 
 	cmd := args[1:]
 	err = bootcVM.Run(vm.RunVMParameters{
@@ -136,14 +143,36 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	if !vmConfig.Background {
-		// wait for VM
-		//time.Sleep(5 * time.Second) // just for now
-		err = bootcVM.WaitForSSHToBeReady()
-		if err != nil {
-			return fmt.Errorf("WaitSshReady: %w", err)
+		if !vmConfig.Quiet {
+			var vmConsoleWg sync.WaitGroup
+			vmConsoleWg.Add(1)
+			go func() {
+				bootcVM.PrintConsole()
+			}()
+
+			err = bootcVM.WaitForSSHToBeReady()
+			if err != nil {
+				return fmt.Errorf("WaitSshReady: %w", err)
+			}
+
+			vmConsoleWg.Done() //stop printing the VM console when SSH is ready
+
+			// the PrintConsole routine is suddenly stopped without waiting for
+			// the print buffer to be flushed, this can lead to the consoel output
+			// printing after the ssh prompt begins. Sleeping for a second
+			// should prevent this from happening on most systems.
+			//
+			// The libvirt console stream API blocks while waiting for data, so
+			// cleanly stopping the routing via a channel is not possible.
+			time.Sleep(1 * time.Second)
+		} else {
+			err = bootcVM.WaitForSSHToBeReady()
+			if err != nil {
+				return fmt.Errorf("WaitSshReady: %w", err)
+			}
 		}
 
-		// ssh into it
+		// ssh into the VM
 		err = bootcVM.RunSSH(cmd)
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
