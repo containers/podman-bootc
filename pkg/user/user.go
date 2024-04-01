@@ -47,22 +47,6 @@ func (u *User) SSHDir() string {
 	return filepath.Join(u.HomeDir(), ".ssh")
 }
 
-func (u *User) MachineSocketDir() string {
-	return filepath.Join(u.HomeDir(), ".local/share/containers/podman/machine/qemu")
-}
-
-func (u *User) MachineSocket() string {
-	return filepath.Join(u.MachineSocketDir(), "podman.sock")
-}
-
-func (u *User) MachineSshKeyPriv() string {
-	return filepath.Join(u.SSHDir(), "podman-machine-default")
-}
-
-func (u *User) MachineSshKeyPub() string {
-	return filepath.Join(u.SSHDir(), "podman-machine-default.pub")
-}
-
 func (u *User) ConfigDir() string {
 	return filepath.Join(u.HomeDir(), config.ConfigDir)
 }

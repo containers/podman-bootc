@@ -52,6 +52,7 @@ func cleanup() {
 		machineInfo.SSHIdentityPath,
 		true)
 	if err != nil {
+		println(utils.PodmanMachineErrorMessage)
 		logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
 		os.Exit(1)
 	}

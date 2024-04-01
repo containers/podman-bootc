@@ -70,14 +70,17 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	if machineInfo == nil {
+		println(utils.PodmanMachineErrorMessage)
 		return errors.New("rootful podman machine is required, please run 'podman machine init --rootful'")
 	}
 
 	if !machineInfo.Rootful {
+		println(utils.PodmanMachineErrorMessage)
 		return errors.New("rootful podman machine is required, please run 'podman machine set --rootful'")
 	}
 
 	if _, err := os.Stat(machineInfo.PodmanSocket); err != nil {
+		println(utils.PodmanMachineErrorMessage)
 		logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
 		return err
 	}
@@ -88,6 +91,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		machineInfo.SSHIdentityPath,
 		true)
 	if err != nil {
+		println(utils.PodmanMachineErrorMessage)
 		logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
 		return err
 	}
