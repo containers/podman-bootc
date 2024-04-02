@@ -9,6 +9,7 @@
   <features>
     <acpi></acpi>
   </features>
+  <cpu mode="host-model"/>
   <on_poweroff>destroy</on_poweroff>
   <on_reboot>restart</on_reboot>
   <on_crash>destroy</on_crash>
@@ -27,10 +28,6 @@
     {{.CloudInitCDRom}}
   </devices>
   <qemu:commandline>
-    <qemu:arg value="-cpu"></qemu:arg>
-    <qemu:arg value="host"></qemu:arg>
-    <qemu:arg value="-accel"></qemu:arg>
-    <qemu:arg value="kvm"></qemu:arg>
     <qemu:arg value='-netdev'/>
     <qemu:arg value='user,id=n0,hostfwd=tcp::{{.Port}}-:22'/>
     <qemu:arg value='-device' />
