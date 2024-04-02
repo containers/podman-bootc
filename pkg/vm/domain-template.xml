@@ -33,6 +33,5 @@
     <qemu:arg value='-device' />
     <qemu:arg value='virtio-net-pci,netdev=n0,bus=pci.0,addr=0x10' />
     {{.SMBios}}
-    {{.CloudInitSMBios}}
   </qemu:commandline>
 </domain>
