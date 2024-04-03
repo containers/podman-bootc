@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os/exec"
 	"podman-bootc/pkg/user"
+	"strings"
 
 	"github.com/containers/podman/v5/pkg/machine"
 	"github.com/containers/podman/v5/pkg/machine/define"
@@ -68,11 +71,74 @@ func getMachineInfo() (*MachineInfo, error) {
 
 // Just to support podman v4.9, it will be removed in the future
 func getPv4MachineInfo(user user.User) (*MachineInfo, error) {
-	// Let's cheat and use hard-coded values for podman v4.
-	// We do that because libpod doesn't work if we import both v4 and v5.
+	//check if a default podman machine exists
+	listCmd := exec.Command("podman", "machine", "list", "--format", "json")
+	var listCmdOutput strings.Builder
+	listCmd.Stdout = &listCmdOutput
+	err := listCmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list podman machines: %w", err)
+	}
+	var machineList []MachineList
+	err = json.Unmarshal([]byte(listCmdOutput.String()), &machineList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal podman machine inspect output: %w", err)
+	}
+
+	var defaultMachineName string
+	if len(machineList) == 0 {
+		return nil, errors.New("no podman machine found")
+	} else if len(machineList) == 1 {
+		// if there is only one machine, use it as the default
+		// afaict, podman will use a single machine as the default, even if Default is false
+		// in the output of `podman machine list`
+		if !machineList[0].Running {
+			println(PodmanMachineErrorMessage)
+			return nil, errors.New("the default podman machine is not running")
+		}
+		defaultMachineName = machineList[0].Name
+	} else {
+		foundDefaultMachine := false
+		for _, machine := range machineList {
+			if machine.Default {
+				if !machine.Running {
+					println(PodmanMachineErrorMessage)
+					return nil, errors.New("the default podman machine is not running")
+				}
+
+				foundDefaultMachine = true
+				defaultMachineName = machine.Name
+			}
+		}
+
+		if !foundDefaultMachine {
+			println(PodmanMachineErrorMessage)
+			return nil, errors.New("a default podman machine is not running")
+		}
+	}
+
+	// check if the default podman machine is rootful
+	inspectCmd := exec.Command("podman", "machine", "inspect", defaultMachineName)
+	var inspectCmdOutput strings.Builder
+	inspectCmd.Stdout = &inspectCmdOutput
+	err = inspectCmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect podman machine: %w", err)
+	}
+
+	var machineInspect []MachineInspect
+	err = json.Unmarshal([]byte(inspectCmdOutput.String()), &machineInspect)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal podman machine inspect output: %w", err)
+	}
+
+	if len(machineInspect) == 0 {
+		return nil, errors.New("no podman machine found")
+	}
+
 	return &MachineInfo{
-		PodmanSocket:    user.MachineSocket(),
-		SSHIdentityPath: user.MachineSshKeyPriv(),
-		Rootful:         true,
+		PodmanSocket:    machineInspect[0].ConnectionInfo.PodmanSocket.Path,
+		SSHIdentityPath: machineInspect[0].SSHConfig.IdentityPath,
+		Rootful:         machineInspect[0].Rootful,
 	}, nil
 }

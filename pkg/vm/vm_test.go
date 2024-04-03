@@ -49,6 +49,8 @@ const (
 	testLibvirtUri = "test:///default"
 )
 
+var testUserSSHKey = filepath.Join(testUser.SSHDir(), "podman-machine-default")
+
 var _ = BeforeSuite(func() {
 	// populate the test user home directory.
 	// This is most likely temporary. It enables the VM tests
@@ -58,13 +60,13 @@ var _ = BeforeSuite(func() {
 	Expect(err).To(Not(HaveOccurred()))
 	err = os.MkdirAll(testUser.SSHDir(), 0700)
 	Expect(err).To(Not(HaveOccurred()))
-	err = os.WriteFile(testUser.MachineSshKeyPriv(), []byte(""), 0700)
+	err = os.WriteFile(testUserSSHKey, []byte(""), 0700)
 	Expect(err).To(Not(HaveOccurred()))
-	err = os.WriteFile(testUser.MachineSshKeyPub(), []byte(""), 0700)
+	err = os.WriteFile(testUserSSHKey + ".pub", []byte(""), 0700)
 	Expect(err).To(Not(HaveOccurred()))
 	err = os.MkdirAll(filepath.Join(testUser.HomeDir(), ".local/share/containers/podman/machine/qemu"), 0700)
 	Expect(err).To(Not(HaveOccurred()))
-	err = os.WriteFile(testUser.MachineSocket(), []byte(""), 0700)
+	err = os.WriteFile(filepath.Join(testUser.HomeDir(), ".local/share/containers/podman/machine/qemu/podman.sock"), []byte(""), 0700)
 	Expect(err).To(Not(HaveOccurred()))
 })
 
@@ -97,7 +99,7 @@ func runTestVM(bootcVM vm.BootcVM) {
 		Cmd:           []string{},
 		RemoveVm:      false,
 		Background:    false,
-		SSHIdentity:   testUser.MachineSshKeyPriv(),
+		SSHIdentity:   testUserSSHKey,
 	})
 	Expect(err).To(Not(HaveOccurred()))
 
@@ -206,7 +208,7 @@ var _ = Describe("VM", func() {
 			Expect(vmList[0]).To(Equal(vm.BootcVMConfig{
 				Id:          testImageID[:12],
 				SshPort:     22,
-				SshIdentity: testUser.MachineSshKeyPriv(),
+				SshIdentity: testUserSSHKey,
 				RepoTag:     testRepoTag,
 				Created:     "About a minute ago",
 				DiskSize:    "10.7GB",
@@ -235,7 +237,7 @@ var _ = Describe("VM", func() {
 			Expect(vmList).To(ContainElement(vm.BootcVMConfig{
 				Id:          testImageID[:12],
 				SshPort:     22,
-				SshIdentity: testUser.MachineSshKeyPriv(),
+				SshIdentity: testUserSSHKey,
 				RepoTag:     testRepoTag,
 				Created:     "About a minute ago",
 				DiskSize:    "10.7GB",
@@ -245,7 +247,7 @@ var _ = Describe("VM", func() {
 			Expect(vmList).To(ContainElement(vm.BootcVMConfig{
 				Id:          id2[:12],
 				SshPort:     22,
-				SshIdentity: testUser.MachineSshKeyPriv(),
+				SshIdentity: testUserSSHKey,
 				RepoTag:     testRepoTag,
 				Created:     "About a minute ago",
 				DiskSize:    "10.7GB",
@@ -255,7 +257,7 @@ var _ = Describe("VM", func() {
 			Expect(vmList).To(ContainElement(vm.BootcVMConfig{
 				Id:          id3[:12],
 				SshPort:     22,
-				SshIdentity: testUser.MachineSshKeyPriv(),
+				SshIdentity: testUserSSHKey,
 				RepoTag:     testRepoTag,
 				Created:     "About a minute ago",
 				DiskSize:    "10.7GB",
