@@ -26,6 +26,21 @@ To compile it just run in the project directory
 make
 ```
 
+On MacOS you can use homebrew to install podman-bootc
+
+```
+brew tap germag/podman-bootc
+brew install podman-bootc
+```
+
+It will install xorriso and libvirt, but it doesn't install qemu.
+You need to install qemu manually, using brew:
+```
+brew install qemu
+```
+or by other mean and make it available in the path.
+
+
 ## Running
 
 The core command right now is:
