@@ -24,7 +24,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const diskSize = 10 * 1024 * 1024 * 1024
+// As a baseline heuristic we double the size of
+// the input container to support in-place updates.
+// This is planned to be more configurable in the
+// future.  See also bootc-image-builder
+const containerSizeToDiskSizeMultiplier = 2
+const diskSizeMinimum = 10 * 1024 * 1024 * 1024 // 10GB
 const imageMetaXattr = "user.bootc.meta"
 
 // diskFromContainerMeta is serialized to JSON in a user xattr on a disk image
@@ -38,6 +43,7 @@ type BootcDisk struct {
 	User                    user.User
 	Ctx                     context.Context
 	ImageId                 string
+	imageData               *types.ImageInspectReport
 	RepoTag                 string
 	CreatedAt               time.Time
 	Directory               string
@@ -70,9 +76,14 @@ func (p *BootcDisk) GetImageId() string {
 	return p.ImageId
 }
 
-// GetSize returns the size of the disk in bytes
-func (p *BootcDisk) GetSize() int {
-	return diskSize
+// GetSize returns the virtual size of the disk in bytes;
+// this may be larger than the actual disk usage
+func (p *BootcDisk) GetSize() (int64, error) {
+	st, err := os.Stat(filepath.Join(p.Directory, config.DiskImage))
+	if err != nil {
+		return 0, err
+	}
+	return st.Size(), nil
 }
 
 // GetRepoTag returns the repository of the container image
@@ -149,6 +160,14 @@ func (p *BootcDisk) getOrInstallImageToDisk(quiet bool) error {
 	return p.bootcInstallImageToDisk(quiet)
 }
 
+func align(size int64, align int64) int64 {
+	rem := size % align
+	if rem != 0 {
+		size += (align - rem)
+	}
+	return size
+}
+
 // bootcInstallImageToDisk creates a disk image from a bootc container
 func (p *BootcDisk) bootcInstallImageToDisk(quiet bool) (err error) {
 	println("Creating bootc disk image...")
@@ -156,7 +175,15 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := syscall.Ftruncate(int(p.file.Fd()), diskSize); err != nil {
+	size := p.imageData.Size * containerSizeToDiskSizeMultiplier
+	if size < diskSizeMinimum {
+		size = diskSizeMinimum
+	}
+	// Round up to 4k; loopback wants at least 512b alignment
+	size = align(size, 4096)
+	logrus.Debugf("container size: %d, disk size: %d", p.imageData.Size, size)
+
+	if err := syscall.Ftruncate(int(p.file.Fd()), size); err != nil {
 		return err
 	}
 	doCleanupDisk := true
@@ -210,6 +237,7 @@ func (p *BootcDisk) pullImage() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to get image: %w", err)
 	}
+	p.imageData = image
 
 	imageId := ids[0]
 	p.ImageId = imageId

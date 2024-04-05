@@ -107,13 +107,17 @@ type BootcVMConfig struct {
 
 // writeConfig writes the configuration for the VM to the disk
 func (v *BootcVMCommon) WriteConfig(bootcDisk bootc.BootcDisk) error {
+	size, err := bootcDisk.GetSize()
+	if err != nil {
+		return fmt.Errorf("get disk size: %w", err)
+	}
 	bcConfig := BootcVMConfig{
 		Id:          v.imageID[0:12],
 		SshPort:     v.sshPort,
 		SshIdentity: v.sshIdentity,
 		RepoTag:     bootcDisk.GetRepoTag(),
 		Created:     bootcDisk.GetCreatedAt().Format(time.RFC3339),
-		DiskSize:    strconv.Itoa(bootcDisk.GetSize()),
+		DiskSize:    strconv.FormatInt(size, 10),
 	}
 
 	bcConfigMsh, err := json.Marshal(bcConfig)
