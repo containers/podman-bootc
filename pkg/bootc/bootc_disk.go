@@ -154,7 +154,7 @@ func (p *BootcDisk) getOrInstallImageToDisk(quiet bool) error {
 
 // bootcInstallImageToDisk creates a disk image from a bootc container
 func (p *BootcDisk) bootcInstallImageToDisk(quiet bool) (err error) {
-	println("Creating bootc disk image...")
+	fmt.Printf("Executing `bootc install to-disk` from container image %s to create disk image\n", p.RepoTag)
 	p.file, err = os.CreateTemp(p.Directory, "podman-bootc-tempdisk")
 	if err != nil {
 		return err
