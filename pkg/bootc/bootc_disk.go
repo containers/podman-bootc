@@ -124,14 +124,17 @@ func (p *BootcDisk) getOrInstallImageToDisk(quiet bool) error {
 		if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		logrus.Debugf("No existing disk image found")
 		return p.bootcInstallImageToDisk(quiet)
 	}
+	logrus.Debug("Found existing disk image, comparing digest")
 	defer f.Close()
 	buf := make([]byte, 4096)
 	len, err := unix.Fgetxattr(int(f.Fd()), imageMetaXattr, buf)
 	if err != nil {
 		// If there's no xattr, just remove it
 		os.Remove(diskPath)
+		logrus.Debugf("No %s xattr found", imageMetaXattr)
 		return p.bootcInstallImageToDisk(quiet)
 	}
 	bufTrimmed := buf[:len]
@@ -159,6 +162,7 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool) (err error) {
 	if err := syscall.Ftruncate(int(p.file.Fd()), diskSize); err != nil {
 		return err
 	}
+	logrus.Debugf("Created %s with size %v", p.file.Name(), diskSize)
 	doCleanupDisk := true
 	defer func() {
 		if doCleanupDisk {
@@ -232,16 +236,19 @@ func (p *BootcDisk) runInstallContainer(quiet bool) (err error) {
 	}
 
 	p.bootcInstallContainerId = createResponse.ID //save the id for possible cleanup
+	logrus.Debugf("Created install container, id=%s", createResponse.ID)
 
 	// run the container to create the disk
 	err = containers.Start(p.Ctx, p.bootcInstallContainerId, &containers.StartOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
+	logrus.Debugf("Started install container")
 
 	var exitCode int32
 	if quiet {
 		//wait for the container to finish
+		logrus.Debugf("Waiting for container completion")
 		exitCode, err = containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
 		if err != nil {
 			return fmt.Errorf("failed to wait for container: %w", err)
@@ -283,6 +290,7 @@ func (p *BootcDisk) runInstallContainer(quiet bool) (err error) {
 		}()
 
 		//wait for the container to finish
+		logrus.Debugf("Waiting for container completion (streaming output)")
 		exitCode, err = containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
 		if err != nil {
 			return fmt.Errorf("failed to wait for container: %w", err)
