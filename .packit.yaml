@@ -1,0 +1,20 @@
+specfile_path: rpm/podman-bootc.spec
+upstream_tag_template: v{version}
+
+# add or remove files that should be synced
+files_to_sync:
+    - rpm/podman-bootc.spec
+    - .packit.yaml
+
+# name in upstream package repository or registry (e.g. in PyPI)
+upstream_package_name: podman-bootc-cli
+# downstream (Fedora) RPM package name
+downstream_package_name: podman-bootc
+
+jobs:
+  - job: copr_build
+    trigger: pull_request
+    enable_net: true
+    targets:
+      - fedora-all-x86_64
+
