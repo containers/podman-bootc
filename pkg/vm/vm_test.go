@@ -44,8 +44,8 @@ var testUser = user.User{
 }
 
 const (
-	testImageID = "a025064b145ed339eeef86046aea3ee221a2a5a16f588aff4f43a42e5ca9f844"
-	testRepoTag = "quay.io/test/test:latest"
+	testImageID    = "a025064b145ed339eeef86046aea3ee221a2a5a16f588aff4f43a42e5ca9f844"
+	testRepoTag    = "quay.io/test/test:latest"
 	testLibvirtUri = "test:///default"
 )
 
@@ -62,7 +62,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).To(Not(HaveOccurred()))
 	err = os.WriteFile(testUserSSHKey, []byte(""), 0700)
 	Expect(err).To(Not(HaveOccurred()))
-	err = os.WriteFile(testUserSSHKey + ".pub", []byte(""), 0700)
+	err = os.WriteFile(testUserSSHKey+".pub", []byte(""), 0700)
 	Expect(err).To(Not(HaveOccurred()))
 	err = os.MkdirAll(filepath.Join(testUser.HomeDir(), ".local/share/containers/podman/machine/qemu"), 0700)
 	Expect(err).To(Not(HaveOccurred()))
@@ -107,12 +107,16 @@ func runTestVM(bootcVM vm.BootcVM) {
 	now = now.Add(-time.Duration(1 * time.Minute))
 	bootcDisk := bootc.BootcDisk{
 		ImageNameOrId: testImageID,
-		User: testUser,
-		Ctx: context.Background(),
-		ImageId: testImageID,
-		RepoTag: testRepoTag,
-		CreatedAt: now,
+		User:          testUser,
+		Ctx:           context.Background(),
+		ImageId:       testImageID,
+		RepoTag:       testRepoTag,
+		CreatedAt:     now,
+		Directory:     filepath.Join(testUser.CacheDir(), testImageID),
 	}
+
+	err = os.WriteFile(filepath.Join(testUser.CacheDir(), testImageID, "disk.raw"), []byte(""), 0700)
+	Expect(err).To(Not(HaveOccurred()))
 
 	err = bootcVM.WriteConfig(bootcDisk)
 	Expect(err).To(Not(HaveOccurred()))
@@ -211,7 +215,7 @@ var _ = Describe("VM", func() {
 				SshIdentity: testUserSSHKey,
 				RepoTag:     testRepoTag,
 				Created:     "About a minute ago",
-				DiskSize:    "10.7GB",
+				DiskSize:    "0B",
 				Running:     true,
 			}))
 		})
@@ -240,7 +244,7 @@ var _ = Describe("VM", func() {
 				SshIdentity: testUserSSHKey,
 				RepoTag:     testRepoTag,
 				Created:     "About a minute ago",
-				DiskSize:    "10.7GB",
+				DiskSize:    "0B",
 				Running:     true,
 			}))
 
@@ -250,7 +254,7 @@ var _ = Describe("VM", func() {
 				SshIdentity: testUserSSHKey,
 				RepoTag:     testRepoTag,
 				Created:     "About a minute ago",
-				DiskSize:    "10.7GB",
+				DiskSize:    "0B",
 				Running:     true,
 			}))
 
@@ -260,7 +264,7 @@ var _ = Describe("VM", func() {
 				SshIdentity: testUserSSHKey,
 				RepoTag:     testRepoTag,
 				Created:     "About a minute ago",
-				DiskSize:    "10.7GB",
+				DiskSize:    "0B",
 				Running:     true,
 			}))
 		})
