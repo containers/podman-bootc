@@ -189,7 +189,7 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool) (err error) {
 	if err := syscall.Ftruncate(int(p.file.Fd()), size); err != nil {
 		return err
 	}
-	logrus.Debugf("Created %s with size %v", p.file.Name(), diskSize)
+	logrus.Debugf("Created %s with size %v", p.file.Name(), size)
 	doCleanupDisk := true
 	defer func() {
 		if doCleanupDisk {
