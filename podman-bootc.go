@@ -7,11 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"podman-bootc/cmd"
-	"podman-bootc/pkg/bootc"
-	"podman-bootc/pkg/utils"
-
-	"podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/cmd"
+	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
+	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 
 	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/sirupsen/logrus"

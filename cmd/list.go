@@ -3,9 +3,9 @@ package cmd
 import (
 	"os"
 
-	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/user"
-	"podman-bootc/pkg/vm"
+	"gitlab.com/bootc-org/podman-bootc/pkg/config"
+	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
 
 	"github.com/containers/common/pkg/report"
 	"github.com/spf13/cobra"
