@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"podman-bootc/pkg/config"
-
 	"podman-bootc/pkg/user"
 
 	"github.com/containers/podman/v5/pkg/bindings/containers"

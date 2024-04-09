@@ -5,18 +5,17 @@ import (
 	"os"
 	osUser "os/user"
 	"path/filepath"
-	"podman-bootc/cmd"
-	"podman-bootc/pkg/bootc"
-	"podman-bootc/pkg/user"
 	"testing"
 	"time"
 
+	"podman-bootc/cmd"
+	"podman-bootc/pkg/bootc"
+	"podman-bootc/pkg/user"
 	"podman-bootc/pkg/vm"
-
-	"libvirt.org/go/libvirt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"libvirt.org/go/libvirt"
 )
 
 func TestPodmanBootc(t *testing.T) {

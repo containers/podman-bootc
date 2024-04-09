@@ -3,12 +3,12 @@ package cmd
 import (
 	"fmt"
 	"os"
+
 	"podman-bootc/pkg/config"
 	"podman-bootc/pkg/user"
 	"podman-bootc/pkg/vm"
 
 	"github.com/sirupsen/logrus"
-
 	"github.com/spf13/cobra"
 )
 

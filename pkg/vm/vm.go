@@ -7,12 +7,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"podman-bootc/pkg/bootc"
-	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/user"
 	"strconv"
 	"strings"
 	"time"
+
+	"podman-bootc/pkg/bootc"
+	"podman-bootc/pkg/config"
+	"podman-bootc/pkg/user"
 
 	"github.com/docker/go-units"
 	"github.com/sirupsen/logrus"
@@ -71,7 +72,7 @@ type BootcVM interface {
 	Exists() (bool, error)
 	GetConfig() (*BootcVMConfig, error)
 	CloseConnection()
-	PrintConsole() (error)
+	PrintConsole() error
 }
 
 type BootcVMCommon struct {

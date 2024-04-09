@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"podman-bootc/pkg/user"
 	"strings"
+
+	"podman-bootc/pkg/user"
 
 	"github.com/containers/podman/v5/pkg/machine"
 	"github.com/containers/podman/v5/pkg/machine/define"

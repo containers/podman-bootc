@@ -9,9 +9,8 @@ import (
 
 	"podman-bootc/cmd"
 	"podman-bootc/pkg/bootc"
-	"podman-bootc/pkg/utils"
-
 	"podman-bootc/pkg/user"
+	"podman-bootc/pkg/utils"
 
 	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/sirupsen/logrus"
