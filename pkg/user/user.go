@@ -5,8 +5,9 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"podman-bootc/pkg/config"
 	"strconv"
+
+	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 
 	"github.com/adrg/xdg"
 	"github.com/containers/podman/v5/pkg/rootless"
@@ -62,7 +63,6 @@ func (u *User) DefaultIdentity() string {
 func (u *User) RunDir() string {
 	return filepath.Join(xdg.RuntimeDir, config.ProjectName, "run")
 }
-
 
 func (u *User) InitOSCDirs() error {
 	if err := os.MkdirAll(u.ConfigDir(), os.ModePerm); err != nil {

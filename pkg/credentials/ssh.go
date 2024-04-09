@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"podman-bootc/pkg/config"
+	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 )
 
 // Generatekeys creates an ed25519 set of keys

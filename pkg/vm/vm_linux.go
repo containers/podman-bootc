@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"podman-bootc/pkg/config"
 	"strconv"
 	"text/template"
 	"time"
+
+	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 
 	"github.com/sirupsen/logrus"
 	"libvirt.org/go/libvirt"
@@ -19,8 +20,8 @@ import (
 var domainTemplate string
 
 type BootcVMLinux struct {
-	domain     *libvirt.Domain
-	libvirtUri string
+	domain            *libvirt.Domain
+	libvirtUri        string
 	libvirtConnection *libvirt.Connect
 	BootcVMCommon
 }
