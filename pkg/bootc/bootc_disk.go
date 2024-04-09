@@ -103,6 +103,12 @@ func (p *BootcDisk) Install(quiet bool) (err error) {
 		return
 	}
 
+	// Create VM cache dir; one per oci bootc image
+	p.Directory = filepath.Join(p.User.CacheDir(), p.ImageId)
+	if err := os.MkdirAll(p.Directory, os.ModePerm); err != nil {
+		return fmt.Errorf("error while making bootc disk directory: %w", err)
+	}
+
 	err = p.getOrInstallImageToDisk(quiet)
 	if err != nil {
 		return
@@ -245,12 +251,6 @@ func (p *BootcDisk) pullImage() (err error) {
 	imageId := ids[0]
 	p.ImageId = imageId
 	p.RepoTag = image.RepoTags[0]
-
-	// Create VM cache dir; one per oci bootc image
-	p.Directory = filepath.Join(p.User.CacheDir(), imageId)
-	if err := os.MkdirAll(p.Directory, os.ModePerm); err != nil {
-		return fmt.Errorf("error while making bootc disk directory: %w", err)
-	}
 
 	return
 }
