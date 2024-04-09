@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"podman-bootc/cmd"
-	"podman-bootc/pkg/bootc"
-	"podman-bootc/pkg/user"
-	"podman-bootc/pkg/vm"
+	"gitlab.com/bootc-org/podman-bootc/cmd"
+	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
+	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

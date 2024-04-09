@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/user"
 
 	"github.com/containers/podman/v5/pkg/machine"
 	"github.com/containers/podman/v5/pkg/machine/define"

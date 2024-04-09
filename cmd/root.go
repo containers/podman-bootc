@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/user"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"

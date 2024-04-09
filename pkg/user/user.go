@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"podman-bootc/pkg/config"
+	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 
 	"github.com/adrg/xdg"
 	"github.com/containers/podman/v5/pkg/rootless"

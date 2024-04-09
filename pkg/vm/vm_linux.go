@@ -10,7 +10,7 @@ import (
 	"text/template"
 	"time"
 
-	"podman-bootc/pkg/config"
+	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 
 	"github.com/sirupsen/logrus"
 	"libvirt.org/go/libvirt"

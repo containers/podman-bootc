@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"podman-bootc/pkg/bootc"
-	"podman-bootc/pkg/config"
-	"podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
+	"gitlab.com/bootc-org/podman-bootc/pkg/config"
+	"gitlab.com/bootc-org/podman-bootc/pkg/user"
 
 	"github.com/docker/go-units"
 	"github.com/sirupsen/logrus"
