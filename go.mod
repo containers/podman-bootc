@@ -7,6 +7,7 @@ require (
 	github.com/containers/common v0.58.1
 	github.com/containers/podman/v5 v5.0.1
 	github.com/docker/go-units v0.5.0
+	github.com/gofrs/flock v0.8.1
 	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.32.0
 	github.com/opencontainers/runtime-spec v1.2.0

@@ -3,8 +3,10 @@ package cmd
 import (
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -31,10 +33,19 @@ func doStop(_ *cobra.Command, args []string) (err error) {
 		ImageID:    id,
 		LibvirtUri: config.LibvirtUri,
 		User:       user,
+		Locking:    utils.Exclusive,
 	})
 	if err != nil {
 		return err
 	}
-	defer bootcVM.CloseConnection()
+
+	// Let's be explicit instead of relying on the defer exec order
+	defer func() {
+		bootcVM.CloseConnection()
+		if err := bootcVM.Unlock(); err != nil {
+			logrus.Warningf("unable to unlock VM %s: %v", id, err)
+		}
+	}()
+
 	return bootcVM.Delete()
 }

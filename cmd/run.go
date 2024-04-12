@@ -116,13 +116,20 @@ func doRun(flags *cobra.Command, args []string) error {
 		ImageID:    bootcDisk.GetImageId(),
 		User:       user,
 		LibvirtUri: config.LibvirtUri,
+		Locking:    utils.Shared,
 	})
 
 	if err != nil {
 		return fmt.Errorf("unable to initialize VM: %w", err)
 	}
 
-	defer bootcVM.CloseConnection()
+	// Let's be explicit instead of relying on the defer exec order
+	defer func() {
+		bootcVM.CloseConnection()
+		if err := bootcVM.Unlock(); err != nil {
+			logrus.Warningf("unable to unlock VM %s: %v", bootcDisk.GetImageId(), err)
+		}
+	}()
 
 	cmd := args[1:]
 	err = bootcVM.Run(vm.RunVMParameters{

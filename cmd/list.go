@@ -1,14 +1,15 @@
 package cmd
 
 import (
-	"github.com/sirupsen/logrus"
 	"os"
 
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
 
 	"github.com/containers/common/pkg/report"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -83,13 +84,20 @@ func getVMInfo(user user.User, libvirtUri string, imageId string) (*vm.BootcVMCo
 		ImageID:    imageId,
 		User:       user,
 		LibvirtUri: libvirtUri,
+		Locking:    utils.Shared,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer bootcVM.CloseConnection()
+	// Let's be explicit instead of relying on the defer exec order
+	defer func() {
+		bootcVM.CloseConnection()
+		if err := bootcVM.Unlock(); err != nil {
+			logrus.Warningf("unable to unlock VM %s: %v", imageId, err)
+		}
+	}()
 
 	cfg, err := bootcVM.GetConfig()
 	if err != nil {
