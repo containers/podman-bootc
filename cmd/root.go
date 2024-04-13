@@ -15,6 +15,7 @@ var RootCmd = &cobra.Command{
 	Short:             "Run bootable containers as a virtual machine",
 	Long:              "Run bootable containers as a virtual machine",
 	PersistentPreRunE: preExec,
+	SilenceUsage:      true,
 }
 
 var rootLogLevel string
