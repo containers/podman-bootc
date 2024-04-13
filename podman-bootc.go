@@ -74,4 +74,5 @@ func main() {
 	}()
 
 	cmd.Execute()
+	os.Exit(cmd.ExitCode)
 }

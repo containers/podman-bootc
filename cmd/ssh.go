@@ -3,6 +3,7 @@ package cmd
 import (
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
 
 	"github.com/spf13/cobra"
@@ -51,5 +52,7 @@ func doSsh(_ *cobra.Command, args []string) error {
 	if len(args) > 1 {
 		cmd = args[1:]
 	}
-	return vm.RunSSH(cmd)
+
+	ExitCode, err = utils.WithExitCode(vm.RunSSH(cmd))
+	return err
 }
