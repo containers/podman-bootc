@@ -25,7 +25,7 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 		return nil, fmt.Errorf("image ID is required")
 	}
 
-	cacheDir, err := getVMCachePath(params.ImageID, params.User)
+	cacheDir, err := GetVMCachePath(params.ImageID, params.User)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get VM cache path: %w", err)
 	}
@@ -163,6 +163,15 @@ func (b *BootcVMMac) Run(params RunVMParameters) (err error) {
 func (b *BootcVMMac) Delete() error {
 	logrus.Debugf("Deleting Mac VM %s", b.cacheDir)
 
+	isRunning, err := b.IsRunning()
+	if err != nil {
+		return fmt.Errorf("checking if VM is running: %w", err)
+	}
+
+	if !isRunning {
+		return nil
+	}
+
 	pid, err := utils.ReadPidFile(b.pidFile)
 	if err != nil {
 		return fmt.Errorf("reading pid file: %w", err)
@@ -174,37 +183,6 @@ func (b *BootcVMMac) Delete() error {
 	}
 
 	return process.Signal(os.Interrupt)
-}
-
-func (b *BootcVMMac) Shutdown() error {
-	b.SetUser("root") //TODO the stop command should accept a user parameter
-
-	isRunning, err := b.IsRunning()
-	if err != nil {
-		return fmt.Errorf("unable to determine if VM is running: %w", err)
-	}
-
-	if isRunning {
-		poweroff := []string{"poweroff"}
-		return b.RunSSH(poweroff)
-	} else {
-		logrus.Infof("Unable to shutdown VM. It is not not running.")
-		return nil
-	}
-}
-
-func (b *BootcVMMac) ForceDelete() error {
-	err := b.Shutdown()
-	if err != nil {
-		return fmt.Errorf("unable to shutdown VM: %w", err)
-	}
-
-	err = b.Delete()
-	if err != nil {
-		return fmt.Errorf("unable to delete VM: %w", err)
-	}
-
-	return nil
 }
 
 func (b *BootcVMMac) IsRunning() (bool, error) {

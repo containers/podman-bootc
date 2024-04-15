@@ -39,7 +39,7 @@ func NewVM(params NewVMParameters) (vm *BootcVMLinux, err error) {
 		return nil, fmt.Errorf("libvirt URI is required")
 	}
 
-	cacheDir, err := getVMCachePath(params.ImageID, params.User)
+	cacheDir, err := GetVMCachePath(params.ImageID, params.User)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get VM cache path: %w", err)
 	}
@@ -275,6 +275,11 @@ func (v *BootcVMLinux) loadExistingDomain() (err error) {
 
 // Delete the VM definition
 func (v *BootcVMLinux) Delete() (err error) {
+	err = v.Shutdown()
+	if err != nil {
+		return fmt.Errorf("unable to shutdown VM: %w", err)
+	}
+
 	domainExists, err := v.Exists()
 	if err != nil {
 		return fmt.Errorf("unable to check if VM exists: %w", err)
@@ -307,21 +312,6 @@ func (v *BootcVMLinux) Shutdown() (err error) {
 		if err != nil {
 			return fmt.Errorf("unable to destroy VM: %w", err)
 		}
-	}
-
-	return
-}
-
-// ForceDelete stops and removes the VM
-func (v *BootcVMLinux) ForceDelete() (err error) {
-	err = v.Shutdown()
-	if err != nil {
-		return fmt.Errorf("unable to shutdown VM: %w", err)
-	}
-
-	err = v.Delete()
-	if err != nil {
-		return fmt.Errorf("unable to remove VM: %w", err)
 	}
 
 	return
