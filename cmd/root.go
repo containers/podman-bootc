@@ -10,12 +10,16 @@ import (
 )
 
 // RootCmd represents the base command when called without any subcommands
-var RootCmd = &cobra.Command{
-	Use:               "podman-bootc",
-	Short:             "Run bootable containers as a virtual machine",
-	Long:              "Run bootable containers as a virtual machine",
-	PersistentPreRunE: preExec,
-}
+var (
+	RootCmd = &cobra.Command{
+		Use:               "podman-bootc",
+		Short:             "Run bootable containers as a virtual machine",
+		Long:              "Run bootable containers as a virtual machine",
+		PersistentPreRunE: preExec,
+		SilenceUsage:      true,
+	}
+	ExitCode int
+)
 
 var rootLogLevel string
 
