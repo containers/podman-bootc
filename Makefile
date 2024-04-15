@@ -9,7 +9,11 @@ out_dir:
 	mkdir -p $(output_dir)
 
 test:
-	ginkgo -tags $(build_tags) ./...
+	ginkgo -tags $(build_tags) --skip-package test ./...
+
+# !! These tests will modify your system's resources. See note in e2e_test.go. !!
+e2e_test: all
+	ginkgo -tags $(build_tags) ./test/...
 
 clean:
 	rm -f $(output_dir)/*
