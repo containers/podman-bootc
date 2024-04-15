@@ -20,8 +20,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// getVMCachePath returns the path to the VM cache directory
-func getVMCachePath(imageId string, user user.User) (path string, err error) {
+// GetVMCachePath returns the path to the VM cache directory
+func GetVMCachePath(imageId string, user user.User) (path string, err error) {
 	files, err := os.ReadDir(user.CacheDir())
 	if err != nil {
 		return "", err
@@ -61,8 +61,6 @@ type RunVMParameters struct {
 
 type BootcVM interface {
 	Run(RunVMParameters) error
-	ForceDelete() error
-	Shutdown() error
 	Delete() error
 	IsRunning() (bool, error)
 	WriteConfig(bootc.BootcDisk) error

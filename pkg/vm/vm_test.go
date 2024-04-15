@@ -181,7 +181,7 @@ var _ = Describe("VM", func() {
 	})
 
 	Context("is running", func() {
-		It("should remove the VM from the hypervisor after calling ForceDelete", func() {
+		It("should remove the VM from the hypervisor after calling Delete", func() {
 			//create vm and start it
 			bootcVM := createTestVM(testImageID)
 			runTestVM(bootcVM)
@@ -192,7 +192,7 @@ var _ = Describe("VM", func() {
 			Expect(exists).To(BeTrue())
 
 			//attempt to stop and delete the VM
-			err = bootcVM.ForceDelete()
+			err = bootcVM.Delete()
 			Expect(err).To(Not(HaveOccurred()))
 
 			//assert that the VM is stopped and deleted
