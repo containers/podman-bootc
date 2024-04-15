@@ -184,7 +184,7 @@ func doRun(flags *cobra.Command, args []string) error {
 
 		// Always remove when executing a command
 		if vmConfig.RemoveVm || len(cmd) > 0 {
-			err = bootcVM.ForceDelete() //delete the VM, but keep the disk image
+			err = bootcVM.Delete() //delete the VM, but keep the disk image
 			if err != nil {
 				return fmt.Errorf("unable to remove VM from cache: %w", err)
 			}

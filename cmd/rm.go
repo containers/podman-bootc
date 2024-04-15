@@ -67,16 +67,6 @@ func prune(id string) error {
 
 	defer bootcVM.CloseConnection()
 
-	vmExists, err := bootcVM.Exists()
-	if err != nil {
-		return fmt.Errorf("unable to check if VM exists: %v", err)
-	}
-
-	if !vmExists {
-		logrus.Debugf("VM %s is not running", id)
-		return nil
-	}
-
 	if force {
 		err := forceKillVM(bootcVM)
 		if err != nil {
@@ -136,7 +126,7 @@ func killVM(bootcVM vm.BootcVM) (err error) {
 }
 
 func forceKillVM(bootcVM vm.BootcVM) (err error) {
-	err = bootcVM.ForceDelete()
+	err = bootcVM.Delete()
 	if err != nil {
 		return
 	}

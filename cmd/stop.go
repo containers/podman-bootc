@@ -36,5 +36,5 @@ func doStop(_ *cobra.Command, args []string) (err error) {
 		return err
 	}
 	defer bootcVM.CloseConnection()
-	return bootcVM.ForceDelete()
+	return bootcVM.Delete()
 }
