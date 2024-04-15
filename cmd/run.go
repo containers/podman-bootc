@@ -177,7 +177,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		}
 
 		// ssh into the VM
-		err = bootcVM.RunSSH(cmd)
+		ExitCode, err = utils.WithExitCode(bootcVM.RunSSH(cmd))
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
 		}
