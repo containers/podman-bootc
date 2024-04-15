@@ -48,10 +48,6 @@ func (u *User) SSHDir() string {
 	return filepath.Join(u.HomeDir(), ".ssh")
 }
 
-func (u *User) ConfigDir() string {
-	return filepath.Join(u.HomeDir(), config.ConfigDir)
-}
-
 func (u *User) CacheDir() string {
 	return filepath.Join(u.HomeDir(), config.CacheDir, config.ProjectName)
 }
@@ -65,9 +61,6 @@ func (u *User) RunDir() string {
 }
 
 func (u *User) InitOSCDirs() error {
-	if err := os.MkdirAll(u.ConfigDir(), os.ModePerm); err != nil {
-		return err
-	}
 	if err := os.MkdirAll(u.CacheDir(), os.ModePerm); err != nil {
 		return err
 	}
@@ -80,9 +73,6 @@ func (u *User) InitOSCDirs() error {
 }
 
 func (u *User) RemoveOSCDirs() error {
-	if err := os.RemoveAll(u.ConfigDir()); err != nil {
-		return err
-	}
 	if err := os.RemoveAll(u.CacheDir()); err != nil {
 		return err
 	}

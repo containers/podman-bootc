@@ -2,7 +2,6 @@ package config
 
 const (
 	ProjectName      = "podman-bootc"
-	ConfigDir        = ".config"
 	CacheDir         = ".cache"
 	RunPidFile       = "run.pid"
 	OciArchiveOutput = "image-archive.tar"
