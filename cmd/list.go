@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/sirupsen/logrus"
 	"os"
 
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
@@ -65,25 +66,35 @@ func CollectVmList(user user.User, libvirtUri string) (vmList []vm.BootcVMConfig
 
 	for _, f := range files {
 		if f.IsDir() {
-			bootcVM, err := vm.NewVM(vm.NewVMParameters{
-				ImageID:    f.Name(),
-				User:       user,
-				LibvirtUri: libvirtUri,
-			})
-
+			cfg, err := getVMInfo(user, libvirtUri, f.Name())
 			if err != nil {
-				return nil, err
+				logrus.Warningf("skipping vm %s reason: %v", f.Name(), err)
+				continue
 			}
-
-			cfg, err := bootcVM.GetConfig()
-			if err != nil {
-				return nil, err
-			}
-
-			bootcVM.CloseConnection()
 
 			vmList = append(vmList, *cfg)
 		}
 	}
 	return vmList, nil
+}
+
+func getVMInfo(user user.User, libvirtUri string, imageId string) (*vm.BootcVMConfig, error) {
+	bootcVM, err := vm.NewVM(vm.NewVMParameters{
+		ImageID:    imageId,
+		User:       user,
+		LibvirtUri: libvirtUri,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer bootcVM.CloseConnection()
+
+	cfg, err := bootcVM.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }
