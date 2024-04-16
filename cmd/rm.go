@@ -6,6 +6,7 @@ import (
 
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
 
 	"github.com/sirupsen/logrus"
@@ -60,12 +61,19 @@ func prune(id string) error {
 		ImageID:    id,
 		LibvirtUri: config.LibvirtUri,
 		User:       user,
+		Locking:    utils.Exclusive,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to get VM %s: %v", id, err)
 	}
 
-	defer bootcVM.CloseConnection()
+	// Let's be explicit instead of relying on the defer exec order
+	defer func() {
+		bootcVM.CloseConnection()
+		if err := bootcVM.Unlock(); err != nil {
+			logrus.Warningf("unable to unlock VM %s: %v", id, err)
+		}
+	}()
 
 	if force {
 		err := forceKillVM(bootcVM)

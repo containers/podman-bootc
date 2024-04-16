@@ -13,6 +13,7 @@ import (
 
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 
 	"github.com/containers/podman/v5/pkg/bindings/containers"
 	"github.com/containers/podman/v5/pkg/bindings/images"
@@ -101,6 +102,27 @@ func (p *BootcDisk) Install(quiet bool) (err error) {
 	err = p.pullImage()
 	if err != nil {
 		return
+	}
+
+	// Create VM cache dir; one per oci bootc image
+	p.Directory = filepath.Join(p.User.CacheDir(), p.ImageId)
+	lock := utils.NewCacheLock(p.User.RunDir(), p.Directory)
+	locked, err := lock.TryLock(utils.Exclusive)
+	if err != nil {
+		return fmt.Errorf("error locking the VM cache path: %w", err)
+	}
+	if !locked {
+		return fmt.Errorf("unable to lock the VM cache path")
+	}
+
+	defer func() {
+		if err := lock.Unlock(); err != nil {
+			logrus.Errorf("unable to unlock VM %s: %v", p.ImageId, err)
+		}
+	}()
+
+	if err := os.MkdirAll(p.Directory, os.ModePerm); err != nil {
+		return fmt.Errorf("error while making bootc disk directory: %w", err)
 	}
 
 	err = p.getOrInstallImageToDisk(quiet)
@@ -245,12 +267,6 @@ func (p *BootcDisk) pullImage() (err error) {
 	imageId := ids[0]
 	p.ImageId = imageId
 	p.RepoTag = image.RepoTags[0]
-
-	// Create VM cache dir; one per oci bootc image
-	p.Directory = filepath.Join(p.User.CacheDir(), imageId)
-	if err := os.MkdirAll(p.Directory, os.ModePerm); err != nil {
-		return fmt.Errorf("error while making bootc disk directory: %w", err)
-	}
 
 	return
 }

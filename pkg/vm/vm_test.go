@@ -11,6 +11,7 @@ import (
 	"gitlab.com/bootc-org/podman-bootc/cmd"
 	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -82,6 +83,7 @@ func createTestVM(imageId string) (bootcVM *vm.BootcVMLinux) {
 		ImageID:    imageId,
 		User:       testUser,
 		LibvirtUri: testLibvirtUri,
+		Locking:    utils.Shared,
 	})
 	Expect(err).To(Not(HaveOccurred()))
 
@@ -156,6 +158,10 @@ var _ = Describe("VM", func() {
 	Context("does not exist", func() {
 		It("should create and start the VM after calling Run", func() {
 			bootcVM := createTestVM(testImageID)
+			defer func() {
+				_ = bootcVM.Unlock()
+			}()
+
 			runTestVM(bootcVM)
 			exists, err := bootcVM.Exists()
 			Expect(err).To(Not(HaveOccurred()))
@@ -168,6 +174,10 @@ var _ = Describe("VM", func() {
 
 		It("should return false when calling Exists before Run", func() {
 			bootcVM := createTestVM(testImageID)
+			defer func() {
+				_ = bootcVM.Unlock()
+			}()
+
 			exists, err := bootcVM.Exists()
 			Expect(err).To(Not(HaveOccurred()))
 			Expect(exists).To(BeFalse())
@@ -184,6 +194,10 @@ var _ = Describe("VM", func() {
 		It("should remove the VM from the hypervisor after calling Delete", func() {
 			//create vm and start it
 			bootcVM := createTestVM(testImageID)
+			defer func() {
+				_ = bootcVM.Unlock()
+			}()
+
 			runTestVM(bootcVM)
 
 			//assert that the VM exists
@@ -203,6 +217,10 @@ var _ = Describe("VM", func() {
 
 		It("should list the VM", func() {
 			bootcVM := createTestVM(testImageID)
+			defer func() {
+				_ = bootcVM.Unlock()
+			}()
+
 			runTestVM(bootcVM)
 			vmList, err := cmd.CollectVmList(testUser, testLibvirtUri)
 			Expect(err).To(Not(HaveOccurred()))
@@ -223,14 +241,26 @@ var _ = Describe("VM", func() {
 	Context("multiple running", func() {
 		It("should list all VMs", func() {
 			bootcVM := createTestVM(testImageID)
+			defer func() {
+				_ = bootcVM.Unlock()
+			}()
+
 			runTestVM(bootcVM)
 
 			id2 := "1234564b145ed339eeef86046aea3ee221a2a5a16f588aff4f43a42e5ca9f844"
 			bootcVM2 := createTestVM(id2)
+			defer func() {
+				_ = bootcVM2.Unlock()
+			}()
+
 			runTestVM(bootcVM2)
 
 			id3 := "2345674b145ed339eeef86046aea3ee221a2a5a16f588aff4f43a42e5ca9f844"
 			bootcVM3 := createTestVM(id3)
+			defer func() {
+				_ = bootcVM3.Unlock()
+			}()
+
 			runTestVM(bootcVM3)
 
 			vmList, err := cmd.CollectVmList(testUser, testLibvirtUri)
