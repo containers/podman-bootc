@@ -65,7 +65,7 @@ func CollectVmList(user user.User, libvirtUri string) (vmList []vm.BootcVMConfig
 
 	for _, f := range files {
 		if f.IsDir() {
-			vm, err := vm.NewVM(vm.NewVMParameters{
+			bootcVM, err := vm.NewVM(vm.NewVMParameters{
 				ImageID:    f.Name(),
 				User:       user,
 				LibvirtUri: libvirtUri,
@@ -75,12 +75,12 @@ func CollectVmList(user user.User, libvirtUri string) (vmList []vm.BootcVMConfig
 				return nil, err
 			}
 
-			cfg, err := vm.GetConfig()
+			cfg, err := bootcVM.GetConfig()
 			if err != nil {
 				return nil, err
 			}
 
-			vm.CloseConnection()
+			bootcVM.CloseConnection()
 
 			vmList = append(vmList, *cfg)
 		}
