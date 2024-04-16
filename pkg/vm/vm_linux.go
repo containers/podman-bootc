@@ -131,6 +131,24 @@ func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 		}
 	}
 
+	if v.domain != nil {
+		isRunning, err := v.IsRunning()
+		if err != nil {
+			return fmt.Errorf("unable to check if VM is running: %w", err)
+		}
+
+		if !isRunning {
+			logrus.Debugf("Deleting stopped VM %s\n", v.imageID)
+			err = v.Delete()
+			if err != nil {
+				return fmt.Errorf("unable to delete stopped VM: %w", err)
+			}
+		} else {
+			return errors.New("VM is already running")
+		}
+	}
+
+	//domain doesn't exist, create it
 	logrus.Debugf("Creating VM %s\n", v.imageID)
 
 	domainXML, err := v.parseDomainTemplate()
