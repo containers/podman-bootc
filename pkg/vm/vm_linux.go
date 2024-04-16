@@ -105,7 +105,6 @@ func (v *BootcVMLinux) PrintConsole() (err error) {
 }
 
 func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
-	v.sshPort = params.SSHPort
 	v.removeVm = params.RemoveVm
 	v.background = params.Background
 	v.cmd = params.Cmd
@@ -122,6 +121,21 @@ func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 		}
 	}
 
+	if v.domain != nil {
+		isRunning, err := v.IsRunning()
+		if err != nil {
+			return fmt.Errorf("unable to check if VM is running: %w", err)
+		}
+
+		if !isRunning {
+			logrus.Debugf("Deleting stopped VM %s\n", v.imageID)
+			v.Delete()
+		} else {
+			return errors.New("VM is already running")
+		}
+	}
+
+	//domain doesn't exist, create it
 	logrus.Debugf("Creating VM %s\n", v.imageID)
 
 	domainXML, err := v.parseDomainTemplate()
