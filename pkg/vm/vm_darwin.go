@@ -30,6 +30,11 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 		return nil, fmt.Errorf("unable to get VM cache path: %w", err)
 	}
 
+	lock, err := lockVM(params, cacheDir)
+	if err != nil {
+		return nil, err
+	}
+
 	vm = &BootcVMMac{
 		socketFile: filepath.Join(params.User.CacheDir(), params.ImageID[:12]+"-console.sock"),
 		BootcVMCommon: BootcVMCommon{
@@ -38,6 +43,7 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 			diskImagePath: filepath.Join(cacheDir, config.DiskImage),
 			pidFile:       filepath.Join(cacheDir, config.RunPidFile),
 			user:          params.User,
+			cacheDirLock:  lock,
 		},
 	}
 
@@ -237,4 +243,8 @@ func getQemuInstallPath() (string, error) {
 	}
 
 	return "", errors.New("QEMU binary not found")
+}
+
+func (v *BootcVMMac) Unlock() error {
+	return v.cacheDirLock.Unlock()
 }

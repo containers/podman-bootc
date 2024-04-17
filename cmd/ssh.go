@@ -6,6 +6,7 @@ import (
 	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -35,13 +36,20 @@ func doSsh(_ *cobra.Command, args []string) error {
 		ImageID:    id,
 		User:       user,
 		LibvirtUri: config.LibvirtUri,
+		Locking:    utils.Shared,
 	})
 
 	if err != nil {
 		return err
 	}
 
-	defer vm.CloseConnection()
+	// Let's be explicit instead of relying on the defer exec order
+	defer func() {
+		vm.CloseConnection()
+		if err := vm.Unlock(); err != nil {
+			logrus.Warningf("unable to unlock VM %s: %v", id, err)
+		}
+	}()
 
 	err = vm.SetUser(sshUser)
 	if err != nil {
