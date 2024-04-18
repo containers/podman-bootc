@@ -39,7 +39,7 @@ func NewVM(params NewVMParameters) (vm *BootcVMLinux, err error) {
 		return nil, fmt.Errorf("libvirt URI is required")
 	}
 
-	cacheDir, err := GetVMCachePath(params.ImageID, params.User)
+	longId, cacheDir, err := GetVMCachePath(params.ImageID, params.User)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get VM cache path: %w", err)
 	}
@@ -52,8 +52,8 @@ func NewVM(params NewVMParameters) (vm *BootcVMLinux, err error) {
 	vm = &BootcVMLinux{
 		libvirtUri: params.LibvirtUri,
 		BootcVMCommon: BootcVMCommon{
-			vmName:        vmName(params.ImageID),
-			imageID:       params.ImageID,
+			vmName:        vmName(longId),
+			imageID:       longId,
 			cacheDir:      cacheDir,
 			diskImagePath: filepath.Join(cacheDir, config.DiskImage),
 			user:          params.User,

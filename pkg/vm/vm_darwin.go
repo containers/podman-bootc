@@ -25,7 +25,7 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 		return nil, fmt.Errorf("image ID is required")
 	}
 
-	cacheDir, err := GetVMCachePath(params.ImageID, params.User)
+	longId, cacheDir, err := GetVMCachePath(params.ImageID, params.User)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get VM cache path: %w", err)
 	}
@@ -36,9 +36,9 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 	}
 
 	vm = &BootcVMMac{
-		socketFile: filepath.Join(params.User.CacheDir(), params.ImageID[:12]+"-console.sock"),
+		socketFile: filepath.Join(params.User.CacheDir(), longId[:12]+"-console.sock"),
 		BootcVMCommon: BootcVMCommon{
-			imageID:       params.ImageID,
+			imageID:       longId,
 			cacheDir:      cacheDir,
 			diskImagePath: filepath.Join(cacheDir, config.DiskImage),
 			pidFile:       filepath.Join(cacheDir, config.RunPidFile),
