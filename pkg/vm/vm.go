@@ -25,24 +25,24 @@ import (
 var ErrVMInUse = errors.New("VM already in use")
 
 // GetVMCachePath returns the path to the VM cache directory
-func GetVMCachePath(imageId string, user user.User) (path string, err error) {
+func GetVMCachePath(imageId string, user user.User) (longID string, path string, err error) {
 	files, err := os.ReadDir(user.CacheDir())
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	fullImageId := ""
 	for _, f := range files {
-		if f.IsDir() && strings.HasPrefix(f.Name(), imageId) {
+		if f.IsDir() && len(f.Name()) == 64 && strings.HasPrefix(f.Name(), imageId) {
 			fullImageId = f.Name()
 		}
 	}
 
 	if fullImageId == "" {
-		return "", fmt.Errorf("local installation '%s' does not exists", imageId)
+		return "", "", fmt.Errorf("local installation '%s' does not exists", imageId)
 	}
 
-	return filepath.Join(user.CacheDir(), fullImageId), nil
+	return fullImageId, filepath.Join(user.CacheDir(), fullImageId), nil
 }
 
 type NewVMParameters struct {
