@@ -116,7 +116,7 @@ func (v *BootcVMLinux) PrintConsole() (err error) {
 func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 	v.sshPort = params.SSHPort
 	v.removeVm = params.RemoveVm
-	v.background = params.Background
+	v.interactive = params.Interactive
 	v.cmd = params.Cmd
 	v.hasCloudInit = params.CloudInitData
 	v.cloudInitDir = params.CloudInitDir
@@ -125,9 +125,9 @@ func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 
 	if params.NoCredentials {
 		v.sshIdentity = ""
-		if !v.background {
-			fmt.Print("No credentials provided for SSH, using --background by default")
-			v.background = true
+		if v.interactive {
+			fmt.Print("No credentials provided for SSH, running the VM in the background")
+			v.interactive = false
 		}
 	}
 
