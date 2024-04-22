@@ -103,7 +103,7 @@ func (b *BootcVMMac) GetConfig() (cfg *BootcVMConfig, err error) {
 func (b *BootcVMMac) Run(params RunVMParameters) (err error) {
 	b.sshPort = params.SSHPort
 	b.removeVm = params.RemoveVm
-	b.background = params.Background
+	b.interactive = params.Interactive
 	b.cmd = params.Cmd
 	b.hasCloudInit = params.CloudInitData
 	b.cloudInitDir = params.CloudInitDir
@@ -112,9 +112,9 @@ func (b *BootcVMMac) Run(params RunVMParameters) (err error) {
 
 	if params.NoCredentials {
 		b.sshIdentity = ""
-		if !b.background {
-			fmt.Print("No credentials provided for SSH, using --background by default")
-			b.background = true
+		if b.interactive {
+			fmt.Print("No credentials provided for SSH, running the VM in the background")
+			b.interactive = false
 		}
 	}
 

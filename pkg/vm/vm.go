@@ -61,7 +61,7 @@ type RunVMParameters struct {
 	SSHPort       int
 	Cmd           []string
 	RemoveVm      bool
-	Background    bool
+	Interactive   bool
 }
 
 type BootcVM interface {
@@ -88,7 +88,7 @@ type BootcVMCommon struct {
 	sshIdentity   string
 	sshPort       int
 	removeVm      bool
-	background    bool
+	interactive   bool
 	cmd           []string
 	pidFile       string
 	imageID       string
