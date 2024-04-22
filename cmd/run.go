@@ -41,7 +41,8 @@ var (
 		SilenceUsage: true,
 	}
 
-	vmConfig = osVmConfig{}
+	vmConfig                = osVmConfig{}
+	diskImageConfigInstance = bootc.DiskImageConfig{}
 )
 
 func init() {
@@ -50,6 +51,7 @@ func init() {
 
 	runCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit <cloud-init data directory>")
 
+	runCmd.Flags().StringVar(&diskImageConfigInstance.Filesystem, "filesystem", "", "Override the root filesystem (e.g. xfs, btrfs, ext4)")
 	runCmd.Flags().BoolVar(&vmConfig.NoCredentials, "no-creds", false, "Do not inject default SSH key via credentials; also implies --background")
 	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
 	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Remove the VM and it's disk when the SSH session exits. Cannot be used with --background")
@@ -99,7 +101,7 @@ func doRun(flags *cobra.Command, args []string) error {
 	// create the disk image
 	idOrName := args[0]
 	bootcDisk := bootc.NewBootcDisk(idOrName, ctx, user)
-	err = bootcDisk.Install(vmConfig.Quiet)
+	err = bootcDisk.Install(vmConfig.Quiet, diskImageConfigInstance)
 
 	if err != nil {
 		return fmt.Errorf("unable to install bootc image: %w", err)
