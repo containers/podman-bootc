@@ -1,0 +1,24 @@
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: quay.io/centos/centos:stream9
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          set -xeuo pipefail
+          dnf -y install 'dnf-command(config-manager)'
+          dnf -y config-manager --set-enabled crb
+          dnf -y install go-toolset libvirt-devel
+          # Because all the git clones are much less reliable
+          export GOPROXY=https://proxy.golang.org
+          go install github.com/onsi/ginkgo/v2/ginkgo@latest
+          make GOOPTS=-buildvcs=false
+          export PATH=$PATH:$HOME/go/bin
+          make test
