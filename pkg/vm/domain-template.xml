@@ -25,6 +25,13 @@
       <target bus="virtio" dev="vda"></target>
       <transient/>
     </disk>
+    <tpm model='tpm-tis'>
+      <backend type='emulator' version='2.0'>
+        <active_pcr_banks>
+            <sha256/>
+        </active_pcr_banks>
+      </backend>
+    </tpm>
     {{.CloudInitCDRom}}
   </devices>
   <qemu:commandline>
