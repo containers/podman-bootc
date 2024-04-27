@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -31,6 +33,19 @@ import (
 const containerSizeToDiskSizeMultiplier = 2
 const diskSizeMinimum = 10 * 1024 * 1024 * 1024 // 10GB
 const imageMetaXattr = "user.bootc.meta"
+
+// tempLosetupWrapperContents is a workaround for https://github.com/containers/bootc/pull/487/commits/89d34c7dbcb8a1fa161f812c6ba0a8b49ccbe00f
+const tempLosetupWrapperContents = `#!/bin/bash
+set -euo pipefail
+args=()
+for arg in "$@"; do
+	case $arg in
+		--direct-io=*) echo "ignoring: $arg" 1>&2;;
+		*) args+="$arg" ;;
+	esac
+done
+exec /usr/sbin/losetup "$@"
+`
 
 // DiskImageConfig defines configuration for the
 type DiskImageConfig struct {
@@ -278,7 +293,20 @@ func (p *BootcDisk) pullImage() (err error) {
 
 // runInstallContainer runs the bootc installer in a container to create a disk image
 func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) (err error) {
-	createResponse, err := p.createInstallContainer(config)
+	// Create a temporary external shell script with the contents of our losetup wrapper
+	losetupTemp, err := os.CreateTemp(p.Directory, "losetup-wrapper")
+	if err != nil {
+		return fmt.Errorf("temp losetup wrapper: %w", err)
+	}
+	defer os.Remove(losetupTemp.Name())
+	if _, err := io.Copy(losetupTemp, strings.NewReader(tempLosetupWrapperContents)); err != nil {
+		return fmt.Errorf("temp losetup wrapper copy: %w", err)
+	}
+	if err := losetupTemp.Chmod(0o755); err != nil {
+		return fmt.Errorf("temp losetup wrapper chmod: %w", err)
+	}
+
+	createResponse, err := p.createInstallContainer(config, losetupTemp.Name())
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)
 	}
@@ -360,7 +388,7 @@ func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) (err
 }
 
 // createInstallContainer creates a container to run the bootc installer
-func (p *BootcDisk) createInstallContainer(config DiskImageConfig) (createResponse types.ContainerCreateResponse, err error) {
+func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup string) (createResponse types.ContainerCreateResponse, err error) {
 	privileged := true
 	autoRemove := true
 	labelNested := true
@@ -404,6 +432,13 @@ func (p *BootcDisk) createInstallContainer(config DiskImageConfig) (createRespon
 					Source:      p.Directory,
 					Destination: "/output",
 					Type:        "bind",
+				},
+				{
+					Source: tempLosetup,
+					// Note that the default $PATH has /usr/local/sbin first
+					Destination: "/usr/local/sbin/losetup",
+					Type:        "bind",
+					Options:     []string{"ro"},
 				},
 			},
 		},
