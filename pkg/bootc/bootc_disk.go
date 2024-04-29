@@ -44,7 +44,7 @@ for arg in "$@"; do
 		*) args+="$arg" ;;
 	esac
 done
-exec /usr/sbin/losetup "$@"
+exec /usr/sbin/losetup "$@" --direct-io=off
 `
 
 // DiskImageConfig defines configuration for the
