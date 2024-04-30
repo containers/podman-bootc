@@ -21,6 +21,7 @@ import (
 	"github.com/containers/podman/v5/pkg/bindings/images"
 	"github.com/containers/podman/v5/pkg/domain/entities/types"
 	"github.com/containers/podman/v5/pkg/specgen"
+	"github.com/docker/go-units"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -49,7 +50,9 @@ exec /usr/sbin/losetup "$@" --direct-io=off
 
 // DiskImageConfig defines configuration for the
 type DiskImageConfig struct {
-	Filesystem string
+	Filesystem  string
+	RootSizeMax string
+	DiskSize    string
 }
 
 // diskFromContainerMeta is serialized to JSON in a user xattr on a disk image
@@ -223,9 +226,20 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 	if size < diskSizeMinimum {
 		size = diskSizeMinimum
 	}
+	if diskConfig.DiskSize != "" {
+		diskConfigSize, err := units.FromHumanSize(diskConfig.DiskSize)
+		if err != nil {
+			return err
+		}
+		if size < diskConfigSize {
+			size = diskConfigSize
+		}
+	}
 	// Round up to 4k; loopback wants at least 512b alignment
 	size = align(size, 4096)
-	logrus.Debugf("container size: %d, disk size: %d", p.imageData.Size, size)
+	humanContainerSize := units.HumanSize(float64(p.imageData.Size))
+	humanSize := units.HumanSize(float64(size))
+	logrus.Infof("container size: %s, disk size: %s", humanContainerSize, humanSize)
 
 	if err := syscall.Ftruncate(int(p.file.Fd()), size); err != nil {
 		return err
@@ -404,6 +418,9 @@ func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup s
 	}
 	if config.Filesystem != "" {
 		bootcInstallArgs = append(bootcInstallArgs, "--filesystem", config.Filesystem)
+	}
+	if config.RootSizeMax != "" {
+		bootcInstallArgs = append(bootcInstallArgs, "--root-size="+config.RootSizeMax)
 	}
 	bootcInstallArgs = append(bootcInstallArgs, "/output/"+filepath.Base(p.file.Name()))
 
