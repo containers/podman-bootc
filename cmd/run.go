@@ -56,6 +56,8 @@ func init() {
 	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
 	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Remove the VM and it's disk when the SSH session exits. Cannot be used with --background")
 	runCmd.Flags().BoolVar(&vmConfig.Quiet, "quiet", false, "Suppress output from bootc disk creation and VM boot console")
+	runCmd.Flags().StringVar(&diskImageConfigInstance.RootSizeMax, "root-size-max", "", "Maximum size of root filesystem in bytes; optionally accepts M, G, T suffixes")
+	runCmd.Flags().StringVar(&diskImageConfigInstance.DiskSize, "disk-size", "", "Allocate a disk image of this size in bytes; optionally accepts M, G, T suffixes")
 }
 
 func doRun(flags *cobra.Command, args []string) error {
