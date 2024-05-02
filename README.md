@@ -18,6 +18,7 @@ Requirements:
 - qemu-system-x86_64/qemu-system-aarch64
 - xorriso/osirrox
 - golang
+- libvirt-devel
 
 
 To compile it just run in the project directory
