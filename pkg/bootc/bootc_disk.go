@@ -38,14 +38,14 @@ const imageMetaXattr = "user.bootc.meta"
 // tempLosetupWrapperContents is a workaround for https://github.com/containers/bootc/pull/487/commits/89d34c7dbcb8a1fa161f812c6ba0a8b49ccbe00f
 const tempLosetupWrapperContents = `#!/bin/bash
 set -euo pipefail
-args=()
+args=(/usr/sbin/losetup --direct-io=off)
 for arg in "$@"; do
 	case $arg in
 		--direct-io=*) echo "ignoring: $arg" 1>&2;;
-		*) args+="$arg" ;;
+		*) args+=("$arg") ;;
 	esac
 done
-exec /usr/sbin/losetup "$@" --direct-io=off
+exec "${args[@]}"
 `
 
 // DiskImageConfig defines configuration for the
