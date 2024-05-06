@@ -67,7 +67,39 @@ Even after you close the SSH connection, the machine continues to run.
 - `podman-bootc ssh`: Connect to a VM
 - `podman-bootc rm`: Remove a VM
 
-### Architecture
+## Running as a container (Linux)
+
+There is also a container image available at `quay.io/podman/podman-bootc` that
+makes it more convenient to run podman-bootc on Linux. It can run under rootless
+podman. The only requirement is that `/dev/kvm` must be passed through.
+
+In this model, the underlying `podman machine` infrastructure is automatically
+brought up on startup and brought down on exit. This allows booting a bootc
+container in a single command:
+
+```shell
+podman run --rm -ti --device /dev/kvm quay.io/podman/podman-bootc run <image>
+```
+
+You can also run the image without passing any command. In that case, you will
+be given a shell in which the environment is set up and ready for `podman-bootc`
+invocations.
+
+### Caching
+
+You likely will want to enable caching to avoid having to redownload/rederive
+artifacts every time. To do this, mount a volume at `/cache`. For example:
+
+```shell
+# from a volume
+podman volume create podman-bootc
+podman run --rm -v podman-bootc:/cache --device /dev/kvm quay.io/podman/podman-bootc run <image>
+
+# from a mountpoint
+podman run --rm -v ~/.cache/podman-bootc:/cache:z  --device /dev/kvm quay.io/podman/podman-bootc
+```
+
+## Architecture
 
 At the current time the `run` command uses a
 [bootc install](https://containers.github.io/bootc/bootc-install.html)

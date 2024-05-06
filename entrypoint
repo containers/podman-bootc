@@ -1,0 +1,74 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ "$(id -u)" = 0 ]; then
+	# this is normally created by the authentication stack
+	rundir=/run/user/"$(id -u podman-bootc)"
+	# shellcheck disable=SC2174
+	mkdir -m 700 -p "${rundir}"
+	chown -R podman-bootc:podman-bootc "${rundir}"
+
+	rc=0
+	mountpoint -q /cache || rc=$?
+	if [ $rc = 0 ]; then
+		chown -R podman-bootc:podman-bootc /cache
+	elif [ $rc = 32 ]; then
+		echo "Note: /cache is not a mountpoint" >&2
+		echo "Consider mounting a volume on /cache to cache artifacts" >&2
+	else
+		echo "Warning: failed checking if /cache is a mountpoint" >&2
+	fi
+
+	# re-exec ourselves as the podman-bootc user
+	# control flow continues below
+	exec sudo -u podman-bootc "$0" "$@"
+fi
+
+# When hard killing VMs (e.g. by hard killing the container), disk overlays
+# can remain; libvirt will choke if they already exist when trying to bring
+# up new VMs from the same image. Those files should probably not be under
+# XDG_CACHE_HOME in the first place.
+if [ -d /cache/.cache/podman-bootc ]; then
+	find /cache/.cache/podman-bootc -name '*.TRANSIENT-*' -type f -exec rm {} \;
+fi
+
+if [ $# -gt 0 ] && [ "$1" != run ]; then
+	echo "Only the 'run' command is supported in this mode" >&2
+	echo "To get a shell, do not pass a command" >&2
+	exit 1
+fi
+
+stop() {
+	podman machine stop bootstrap
+	touch /cache/.clean-bootstrap-stop
+}
+
+trap 'stop' EXIT
+
+# create or recreate or start the bootstrap VM
+init_args=(--rootful --timezone UTC --now bootstrap)
+if podman machine ls -q | grep -q bootstrap; then
+	if [ ! -f /cache/.clean-bootstrap-stop ]; then
+		# to be safe, we recreate the bootstrap node if it wasn't shut down cleanly
+		podman machine rm bootstrap -f
+		podman machine init "${init_args[@]}"
+	else
+		rm /cache/.clean-bootstrap-stop
+		podman machine start bootstrap
+	fi
+else
+	podman machine init "${init_args[@]}"
+fi
+
+if [ $# = 0 ]; then
+	echo "You can now run podman-bootc commands; e.g.:" >&2
+	echo >&2
+	echo -e "\tpodman-bootc run --rm quay.io/centos-bootc/centos-bootc:stream9" >&2
+	echo >&2
+	bash
+elif [ "$1" = run ]; then
+	podman-bootc "$@"
+else
+	echo "unreachable" >&2
+	exit 1
+fi
