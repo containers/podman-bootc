@@ -232,7 +232,9 @@ func (v *BootcVMCommon) RunSSH(inputArgs []string) error {
 		"-o", "IdentitiesOnly=yes",
 		"-o", "PasswordAuthentication=no",
 		"-o", "StrictHostKeyChecking=no",
-		"-o", "LogLevel=ERROR", "-o", "SetEnv=LC_ALL="}
+		"-o", "LogLevel=ERROR",
+		"-o", "SetEnv=LC_ALL=",
+		"-o", "UserKnownHostsFile=/dev/null"}
 	if len(inputArgs) > 0 {
 		args = append(args, inputArgs...)
 	} else {
