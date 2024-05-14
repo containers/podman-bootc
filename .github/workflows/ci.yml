@@ -21,4 +21,4 @@ jobs:
           go install github.com/onsi/ginkgo/v2/ginkgo@latest
           make GOOPTS=-buildvcs=false
           export PATH=$PATH:$HOME/go/bin
-          make test
+          make integration_tests
