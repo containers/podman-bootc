@@ -68,6 +68,7 @@ type BootcDisk struct {
 	CreatedAt               time.Time
 	file                    *os.File
 	bootcInstallContainerId string
+	bustCache               bool
 }
 
 // create singleton for easy cleanup
@@ -82,13 +83,16 @@ var (
 //   - imageNameOrId: the name or id of the container image
 //   - ctx: context for the podman machine connection
 //   - user: the user who is running the command, determines where the disk image is stored
-func NewBootcDisk(containerImage container.ContainerImage, ctx context.Context, user user.User, cache cache.Cache) *BootcDisk {
+//   - cache: the cache to use for storing the disk image
+//   - bustCache: whether to force a new disk image to be created
+func NewBootcDisk(containerImage container.ContainerImage, ctx context.Context, user user.User, cache cache.Cache, bustCache bool) *BootcDisk {
 	instanceOnce.Do(func() {
 		instance = &BootcDisk{
 			ContainerImage: containerImage,
 			Ctx:            ctx,
 			User:           user,
 			Cache:          cache,
+			bustCache:      bustCache,
 		}
 	})
 	return instance
@@ -146,13 +150,25 @@ func (p *BootcDisk) getOrInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 		logrus.Debugf("No existing disk image found")
 		return p.bootcInstallImageToDisk(quiet, diskConfig)
 	}
+	if p.bustCache {
+		logrus.Debug("Found existing disk image but cache busting is enabled, removing and recreating")
+		err = os.Remove(diskPath)
+		if err != nil {
+			return err
+		}
+		return p.bootcInstallImageToDisk(quiet, diskConfig)
+	}
+
 	logrus.Debug("Found existing disk image, comparing digest")
 	defer f.Close()
 	buf := make([]byte, 4096)
 	len, err := unix.Fgetxattr(int(f.Fd()), imageMetaXattr, buf)
 	if err != nil {
 		// If there's no xattr, just remove it
-		os.Remove(diskPath)
+		err = os.Remove(diskPath)
+		if err != nil {
+			return err
+		}
 		logrus.Debugf("No %s xattr found", imageMetaXattr)
 		return p.bootcInstallImageToDisk(quiet, diskConfig)
 	}

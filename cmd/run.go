@@ -136,8 +136,16 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("VM already running, use the ssh command to connect to it")
 	}
 
+	// if any of these parameters are set, we need to rebuild the disk image if one exists
+	bustCache := false
+	if diskImageConfigInstance.DiskSize != "" ||
+		diskImageConfigInstance.RootSizeMax != "" ||
+		diskImageConfigInstance.Filesystem != "" {
+		bustCache = true
+	}
+
 	// create the disk image
-	bootcDisk := bootc.NewBootcDisk(containerImage, ctx, user, cache)
+	bootcDisk := bootc.NewBootcDisk(containerImage, ctx, user, cache, bustCache)
 	err = bootcDisk.Install(vmConfig.Quiet, diskImageConfigInstance)
 
 	if err != nil {

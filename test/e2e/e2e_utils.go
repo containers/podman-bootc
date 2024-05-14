@@ -105,8 +105,10 @@ func GetVMIdFromContainerImage(image string) (vmId string, err error) {
 	return
 }
 
-func BootVM(image string) (vm *TestVM, err error) {
-	runActiveCmd := exec.Command(PodmanBootcBinary(), "run", image)
+func BootVM(image string, args ...string) (vm *TestVM, err error) {
+	cmd := []string{"run", image}
+	cmd = append(cmd, args...)
+	runActiveCmd := exec.Command(PodmanBootcBinary(), cmd...)
 	stdIn, err := runActiveCmd.StdinPipe()
 
 	if err != nil {

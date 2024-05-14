@@ -59,7 +59,7 @@ func cleanup() {
 	}
 
 	//delete the disk image
-	err = bootc.NewBootcDisk(container.ContainerImage{}, ctx, user, cache.Cache{}).Cleanup()
+	err = bootc.NewBootcDisk(container.ContainerImage{}, ctx, user, cache.Cache{}, false).Cleanup()
 	if err != nil {
 		logrus.Errorf("unable to get podman machine info: %s", err)
 		os.Exit(0)
