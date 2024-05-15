@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
+	"gitlab.com/bootc-org/podman-bootc/pkg/cache"
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
+	"gitlab.com/bootc-org/podman-bootc/pkg/container"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
 	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
@@ -100,9 +102,42 @@ func doRun(flags *cobra.Command, args []string) error {
 		return err
 	}
 
+	// pull the container image
+	containerImage := container.NewContainerImage(args[0], ctx)
+	err = containerImage.Pull()
+	if err != nil {
+		return fmt.Errorf("unable to pull container image: %w", err)
+	}
+
+	// create the cache directory
+	cache := cache.NewCache(containerImage.GetId(), user)
+	err = cache.Create()
+	if err != nil {
+		return fmt.Errorf("unable to create cache: %w", err)
+	}
+
+	// check if the vm is already running
+	bootcVM, err := vm.NewVM(vm.NewVMParameters{
+		ImageID:    containerImage.GetId(),
+		User:       user,
+		LibvirtUri: config.LibvirtUri,
+		Locking:    utils.Shared,
+	})
+
+	if err != nil {
+		return fmt.Errorf("unable to initialize VM: %w", err)
+	}
+
+	isRunning, err := bootcVM.IsRunning()
+	if err != nil {
+		return fmt.Errorf("unable to check if VM is running: %w", err)
+	}
+	if isRunning {
+		return fmt.Errorf("VM already running, use the ssh command to connect to it")
+	}
+
 	// create the disk image
-	idOrName := args[0]
-	bootcDisk := bootc.NewBootcDisk(idOrName, ctx, user)
+	bootcDisk := bootc.NewBootcDisk(containerImage, ctx, user, cache)
 	err = bootcDisk.Install(vmConfig.Quiet, diskImageConfigInstance)
 
 	if err != nil {
@@ -116,22 +151,11 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to get free port for SSH: %w", err)
 	}
 
-	bootcVM, err := vm.NewVM(vm.NewVMParameters{
-		ImageID:    bootcDisk.GetImageId(),
-		User:       user,
-		LibvirtUri: config.LibvirtUri,
-		Locking:    utils.Shared,
-	})
-
-	if err != nil {
-		return fmt.Errorf("unable to initialize VM: %w", err)
-	}
-
 	// Let's be explicit instead of relying on the defer exec order
 	defer func() {
 		bootcVM.CloseConnection()
 		if err := bootcVM.Unlock(); err != nil {
-			logrus.Warningf("unable to unlock VM %s: %v", bootcDisk.GetImageId(), err)
+			logrus.Warningf("unable to unlock VM %s: %v", containerImage.GetId(), err)
 		}
 	}()
 
@@ -153,7 +177,7 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	// write down the config file
-	if err = bootcVM.WriteConfig(*bootcDisk); err != nil {
+	if err = bootcVM.WriteConfig(*bootcDisk, containerImage); err != nil {
 		return err
 	}
 

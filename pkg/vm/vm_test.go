@@ -12,6 +12,8 @@ import (
 
 	"gitlab.com/bootc-org/podman-bootc/cmd"
 	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
+	"gitlab.com/bootc-org/podman-bootc/pkg/cache"
+	"gitlab.com/bootc-org/podman-bootc/pkg/container"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
 	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
@@ -108,20 +110,35 @@ func runTestVM(bootcVM vm.BootcVM) {
 
 	now := time.Now()
 	now = now.Add(-time.Duration(1 * time.Minute))
-	bootcDisk := bootc.BootcDisk{
+
+	containerImage := container.ContainerImage{
 		ImageNameOrId: testImageID,
-		User:          testUser,
 		Ctx:           context.Background(),
-		ImageId:       testImageID,
+		Id:            testImageID,
 		RepoTag:       testRepoTag,
-		CreatedAt:     now,
-		Directory:     filepath.Join(testUser.CacheDir(), testImageID),
+		Size:          0,
+		Pulled:        true,
+	}
+
+	cache := cache.Cache{
+		User: testUser,
+		ImageId: testImageID,
+		Directory: filepath.Join(testUser.CacheDir(), testImageID),
+		Created: true,
+	}
+
+	bootcDisk := bootc.BootcDisk{
+		Cache:          cache,
+		ContainerImage: containerImage,
+		User:           testUser,
+		Ctx:            context.Background(),
+		CreatedAt:      now,
 	}
 
 	err = os.WriteFile(filepath.Join(testUser.CacheDir(), testImageID, "disk.raw"), []byte(""), 0700)
 	Expect(err).To(Not(HaveOccurred()))
 
-	err = bootcVM.WriteConfig(bootcDisk)
+	err = bootcVM.WriteConfig(bootcDisk, containerImage)
 	Expect(err).To(Not(HaveOccurred()))
 }
 

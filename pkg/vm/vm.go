@@ -14,6 +14,7 @@ import (
 
 	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
+	"gitlab.com/bootc-org/podman-bootc/pkg/container"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
 	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 
@@ -68,7 +69,7 @@ type BootcVM interface {
 	Run(RunVMParameters) error
 	Delete() error
 	IsRunning() (bool, error)
-	WriteConfig(bootc.BootcDisk) error
+	WriteConfig(bootc.BootcDisk, container.ContainerImage) error
 	WaitForSSHToBeReady() error
 	RunSSH([]string) error
 	DeleteFromCache() error
@@ -109,7 +110,7 @@ type BootcVMConfig struct {
 }
 
 // writeConfig writes the configuration for the VM to the disk
-func (v *BootcVMCommon) WriteConfig(bootcDisk bootc.BootcDisk) error {
+func (v *BootcVMCommon) WriteConfig(bootcDisk bootc.BootcDisk, containerImage container.ContainerImage) error {
 	size, err := bootcDisk.GetSize()
 	if err != nil {
 		return fmt.Errorf("get disk size: %w", err)
@@ -118,7 +119,7 @@ func (v *BootcVMCommon) WriteConfig(bootcDisk bootc.BootcDisk) error {
 		Id:          v.imageID[0:12],
 		SshPort:     v.sshPort,
 		SshIdentity: v.sshIdentity,
-		RepoTag:     bootcDisk.GetRepoTag(),
+		RepoTag:     containerImage.GetRepoTag(),
 		Created:     bootcDisk.GetCreatedAt().Format(time.RFC3339),
 		DiskSize:    strconv.FormatInt(size, 10),
 	}
