@@ -17,6 +17,8 @@
     <type>hvm</type>
     <boot dev="hd"></boot>
   </os>
+  <!-- https://github.com/fedora-selinux/selinux-policy/issues/2124 -->
+  <seclabel type="none" model="selinux"/>
   <devices>
     <serial type="pty" />
     <disk device="disk" type="file">
