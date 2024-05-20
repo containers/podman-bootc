@@ -336,15 +336,62 @@ func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) (err
 	logrus.Debugf("Started install container")
 
 	var exitCode int32
-	if !quiet {
-		attachOpts := new(containers.AttachOptions).WithStream(true)
-		if err := containers.Attach(p.Ctx, p.bootcInstallContainerId, os.Stdin, os.Stdout, os.Stderr, nil, attachOpts); err != nil {
-			return fmt.Errorf("attaching: %w", err)
+	if quiet {
+		//wait for the container to finish
+		logrus.Debugf("Waiting for container completion")
+		exitCode, err = containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
+		if err != nil {
+			return fmt.Errorf("failed to wait for container: %w", err)
 		}
-	}
-	exitCode, err = containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
-	if err != nil {
-		return fmt.Errorf("failed to wait for container: %w", err)
+	} else {
+		// stream logs to stdout and stderr
+		stdOut := make(chan string)
+		stdErr := make(chan string)
+		logErrors := make(chan error)
+
+		var wg sync.WaitGroup
+		go func() {
+			follow := true
+			defer close(stdOut)
+			defer close(stdErr)
+			trueV := true
+			err = containers.Logs(p.Ctx, p.bootcInstallContainerId, &containers.LogOptions{Follow: &follow, Stdout: &trueV, Stderr: &trueV}, stdOut, stdErr)
+			if err != nil {
+				logErrors <- err
+			}
+
+			close(logErrors)
+		}()
+
+		wg.Add(1)
+		go func() {
+			for str := range stdOut {
+				fmt.Print(str)
+			}
+			wg.Done()
+		}()
+
+		wg.Add(1)
+		go func() {
+			for str := range stdErr {
+				fmt.Fprintf(os.Stderr, "%s", str)
+			}
+			wg.Done()
+		}()
+
+		//wait for the container to finish
+		logrus.Debugf("Waiting for container completion (streaming output)")
+		exitCode, err = containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
+		if err != nil {
+			return fmt.Errorf("failed to wait for container: %w", err)
+		}
+
+		if err := <-logErrors; err != nil {
+			return fmt.Errorf("failed to get logs: %w", err)
+		}
+
+		// Ensure the streams are done
+		wg.Wait()
 	}
 
 	if exitCode != 0 {
@@ -377,8 +424,6 @@ func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup s
 	}
 	bootcInstallArgs = append(bootcInstallArgs, "/output/"+filepath.Base(p.file.Name()))
 
-	// Allocate pty so we can show progress bars, spinners etc.
-	trueDat := true
 	s := &specgen.SpecGenerator{
 		ContainerBasicConfig: specgen.ContainerBasicConfig{
 			Command:     bootcInstallArgs,
@@ -386,7 +431,6 @@ func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup s
 			Remove:      &autoRemove,
 			Annotations: map[string]string{"io.podman.annotations.label": "type:unconfined_t"},
 			Env:         targetEnv,
-			Terminal:    &trueDat,
 		},
 		ContainerStorageConfig: specgen.ContainerStorageConfig{
 			Image: p.ImageNameOrId,
