@@ -28,6 +28,7 @@ type osVmConfig struct {
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
 	Quiet           bool
+	BindMounts      []string
 }
 
 var (
@@ -58,6 +59,7 @@ func init() {
 	runCmd.Flags().BoolVar(&vmConfig.Quiet, "quiet", false, "Suppress output from bootc disk creation and VM boot console")
 	runCmd.Flags().StringVar(&diskImageConfigInstance.RootSizeMax, "root-size-max", "", "Maximum size of root filesystem in bytes; optionally accepts M, G, T suffixes")
 	runCmd.Flags().StringVar(&diskImageConfigInstance.DiskSize, "disk-size", "", "Allocate a disk image of this size in bytes; optionally accepts M, G, T suffixes")
+	runCmd.Flags().StringArrayVar(&vmConfig.BindMounts, "bind", nil, "Create a virtiofs mount between host and guest, separated by a `:`")
 }
 
 func doRun(flags *cobra.Command, args []string) error {
@@ -141,6 +143,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		CloudInitDir:  vmConfig.CloudInitDir,
 		NoCredentials: vmConfig.NoCredentials,
 		CloudInitData: flags.Flags().Changed("cloudinit"),
+		BindMounts:    vmConfig.BindMounts,
 		RemoveVm:      vmConfig.RemoveVm,
 		Background:    vmConfig.Background,
 		SSHPort:       sshPort,

@@ -62,6 +62,7 @@ type RunVMParameters struct {
 	Cmd           []string
 	RemoveVm      bool
 	Background    bool
+	BindMounts    []string
 }
 
 type BootcVM interface {
@@ -97,6 +98,7 @@ type BootcVMCommon struct {
 	hasCloudInit  bool
 	cloudInitDir  string
 	cloudInitArgs string
+	BindMounts    []string
 	bootcDisk     bootc.BootcDisk
 	cacheDirLock  utils.CacheLock
 }

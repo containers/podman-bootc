@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -120,6 +121,7 @@ func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 	v.cmd = params.Cmd
 	v.hasCloudInit = params.CloudInitData
 	v.cloudInitDir = params.CloudInitDir
+	v.BindMounts = params.BindMounts
 	v.vmUsername = params.VMUser
 	v.sshIdentity = params.SSHIdentity
 
@@ -192,6 +194,7 @@ func (v *BootcVMLinux) parseDomainTemplate() (domainXML string, err error) {
 		Name            string
 		CloudInitCDRom  string
 		CloudInitSMBios string
+		Filesystems     string
 	}
 
 	templateParams := TemplateParams{
@@ -229,6 +232,31 @@ func (v *BootcVMLinux) parseDomainTemplate() (domainXML string, err error) {
 			</disk>
 		`, v.cloudInitArgs)
 	}
+
+	bindMounts := ""
+	for _, mnt := range v.BindMounts {
+		parts := strings.SplitN(mnt, ":", 2)
+		if len(parts) < 2 {
+			return "", fmt.Errorf("invalid bind mount: %q", mnt)
+		}
+		src := parts[0]
+		absSrc, err := filepath.Abs(src)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve bind mount source %q", src)
+		}
+		dst := parts[1]
+		// Note we're not properly quoting for XML here, just relying
+		// on the Go quoting.  Fixing that would involve pulling in a real
+		// XML library.
+		bindMounts += fmt.Sprintf(`
+			<filesystem type="mount" accessmode="passthrough">
+				<driver type="virtiofs"/>
+				<source dir=%q/>
+				<target dir=%q/>
+	  		</filesystem>
+		`, absSrc, dst)
+	}
+	templateParams.Filesystems = bindMounts
 
 	err = tmpl.Execute(&domainXMLBuf, templateParams)
 	if err != nil {

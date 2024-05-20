@@ -25,6 +25,10 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 		return nil, fmt.Errorf("image ID is required")
 	}
 
+	if len(params.BindMounts) > 0 {
+		return fmt.Errorf("bind mounts are currently not supported on this platform")
+	}
+
 	longId, cacheDir, err := GetVMCachePath(params.ImageID, params.User)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get VM cache path: %w", err)
