@@ -335,10 +335,14 @@ func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) (err
 	}
 	logrus.Debugf("Started install container")
 
+	// Ensure we've cancelled the container attachment when exiting this function, as
+	// it takes over stdout/stderr handling
+	attachCancelCtx, cancelAttach := context.WithCancel(p.Ctx)
+	defer cancelAttach()
 	var exitCode int32
 	if !quiet {
 		attachOpts := new(containers.AttachOptions).WithStream(true)
-		if err := containers.Attach(p.Ctx, p.bootcInstallContainerId, os.Stdin, os.Stdout, os.Stderr, nil, attachOpts); err != nil {
+		if err := containers.Attach(attachCancelCtx, p.bootcInstallContainerId, nil, os.Stdout, os.Stderr, nil, attachOpts); err != nil {
 			return fmt.Errorf("attaching: %w", err)
 		}
 	}
