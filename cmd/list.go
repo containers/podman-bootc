@@ -3,9 +3,9 @@ package cmd
 import (
 	"os"
 
+	"gitlab.com/bootc-org/podman-bootc/pkg/cache"
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
-	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
 
 	"github.com/containers/common/pkg/report"
@@ -79,24 +79,34 @@ func CollectVmList(user user.User, libvirtUri string) (vmList []vm.BootcVMConfig
 	return vmList, nil
 }
 
-func getVMInfo(user user.User, libvirtUri string, imageId string) (*vm.BootcVMConfig, error) {
+func getVMInfo(user user.User, libvirtUri string, fullImageId string) (*vm.BootcVMConfig, error) {
+	cacheDir, err := cache.NewCache(fullImageId, user)
+	if err != nil {
+		return nil, err
+	}
+	err = cacheDir.Lock(cache.Shared)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if err := cacheDir.Unlock(); err != nil {
+			logrus.Warningf("unable to unlock VM %s: %v", fullImageId, err)
+		}
+	}()
+
 	bootcVM, err := vm.NewVM(vm.NewVMParameters{
-		ImageID:    imageId,
+		ImageID:    fullImageId,
 		User:       user,
 		LibvirtUri: libvirtUri,
-		Locking:    utils.Shared,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Let's be explicit instead of relying on the defer exec order
 	defer func() {
 		bootcVM.CloseConnection()
-		if err := bootcVM.Unlock(); err != nil {
-			logrus.Warningf("unable to unlock VM %s: %v", imageId, err)
-		}
 	}()
 
 	cfg, err := bootcVM.GetConfig()

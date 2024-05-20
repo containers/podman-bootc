@@ -109,9 +109,16 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to pull container image: %w", err)
 	}
 
-	// create the cache directory
-	cache := cache.NewCache(containerImage.GetId(), user)
-	err = cache.Create()
+	// create the cacheDir directory
+	cacheDir, err := cache.NewCache(containerImage.GetId(), user)
+	if err != nil {
+		return fmt.Errorf("unable to create cache: %w", err)
+	}
+	err = cacheDir.Lock(cache.Exclusive)
+	if err != nil {
+		return err
+	}
+	err = cacheDir.Create()
 	if err != nil {
 		return fmt.Errorf("unable to create cache: %w", err)
 	}
@@ -121,12 +128,19 @@ func doRun(flags *cobra.Command, args []string) error {
 		ImageID:    containerImage.GetId(),
 		User:       user,
 		LibvirtUri: config.LibvirtUri,
-		Locking:    utils.Shared,
 	})
 
 	if err != nil {
 		return fmt.Errorf("unable to initialize VM: %w", err)
 	}
+
+	defer func() {
+		// Let's be explicit instead of relying on the defer exec order
+		bootcVM.CloseConnection()
+		if err := cacheDir.Unlock(); err != nil {
+			logrus.Warningf("unable to unlock cache %s: %v", cacheDir.ImageId, err)
+		}
+	}()
 
 	isRunning, err := bootcVM.IsRunning()
 	if err != nil {
@@ -145,7 +159,7 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	// create the disk image
-	bootcDisk := bootc.NewBootcDisk(containerImage, ctx, user, cache, bustCache)
+	bootcDisk := bootc.NewBootcDisk(containerImage, ctx, user, cacheDir, bustCache)
 	err = bootcDisk.Install(vmConfig.Quiet, diskImageConfigInstance)
 
 	if err != nil {
@@ -158,14 +172,6 @@ func doRun(flags *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("unable to get free port for SSH: %w", err)
 	}
-
-	// Let's be explicit instead of relying on the defer exec order
-	defer func() {
-		bootcVM.CloseConnection()
-		if err := bootcVM.Unlock(); err != nil {
-			logrus.Warningf("unable to unlock VM %s: %v", containerImage.GetId(), err)
-		}
-	}()
 
 	cmd := args[1:]
 	err = bootcVM.Run(vm.RunVMParameters{
@@ -186,6 +192,20 @@ func doRun(flags *cobra.Command, args []string) error {
 
 	// write down the config file
 	if err = bootcVM.WriteConfig(*bootcDisk, containerImage); err != nil {
+		return err
+	}
+
+	// done modifying the cache, so remove the Exclusive lock
+	err = cacheDir.Unlock()
+	if err != nil {
+		return fmt.Errorf("unable to unlock cache: %w", err)
+	}
+
+	// take a RO lock for the SSH connection
+	// it will be unlocked at the end of this function
+	// by the previous defer()
+	err = cacheDir.Lock(cache.Shared)
+	if err != nil {
 		return err
 	}
 
@@ -230,6 +250,20 @@ func doRun(flags *cobra.Command, args []string) error {
 
 		// Always remove when executing a command
 		if vmConfig.RemoveVm || len(cmd) > 0 {
+			// remove the RO lock
+			err = cacheDir.Unlock()
+			if err != nil {
+				return err
+			}
+
+			// take an exclusive lock to remove the VM
+			// it will be unlocked at the end of this function
+			// by the previous defer()
+			err = cacheDir.Lock(cache.Exclusive)
+			if err != nil {
+				return err
+			}
+
 			err = bootcVM.Delete() //delete the VM, but keep the disk image
 			if err != nil {
 				return fmt.Errorf("unable to remove VM from cache: %w", err)

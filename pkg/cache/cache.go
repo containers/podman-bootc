@@ -5,62 +5,71 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sirupsen/logrus"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
-	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 )
 
-func NewCache(imageId string, user user.User) Cache {
+// NewCache creates a new cache object
+// Parameters:
+//   - id: the full image ID
+//   - user: the user who is running the podman-bootc command
+func NewCache(id string, user user.User) (cache Cache, err error) {
 	return Cache{
-		ImageId: imageId,
-		User:    user,
-	}
+		ImageId:   id,
+		User:      user,
+		Directory: filepath.Join(user.CacheDir(), id),
+	}, nil
 }
 
 type Cache struct {
 	User      user.User
 	ImageId   string
 	Directory string
-	Created	  bool
+	lock      CacheLock
+}
+
+// Exists checks if the cache directory Exists
+// returns false if any error occurs while checking
+func (p *Cache) Exists() bool {
+	_, err := os.Stat(p.Directory)
+	return err == nil
 }
 
 // Create VM cache dir; one per oci bootc image
 func (p *Cache) Create() (err error) {
-	p.Directory = filepath.Join(p.User.CacheDir(), p.ImageId)
-	lock := utils.NewCacheLock(p.User.RunDir(), p.Directory)
-	locked, err := lock.TryLock(utils.Exclusive)
-	if err != nil {
-		return fmt.Errorf("error locking the VM cache path: %w", err)
-	}
-	if !locked {
-		return fmt.Errorf("unable to lock the VM cache path")
-	}
-
-	defer func() {
-		if err := lock.Unlock(); err != nil {
-			logrus.Errorf("unable to unlock VM %s: %v", p.ImageId, err)
-		}
-	}()
-
 	if err := os.MkdirAll(p.Directory, os.ModePerm); err != nil {
 		return fmt.Errorf("error while making bootc disk directory: %w", err)
 	}
-
-	p.Created = true
 
 	return
 }
 
 func (p *Cache) GetDirectory() string {
-	if !p.Created {
-		panic("cache not created")
+	if !p.Exists() {
+		panic("cache does not exist")
 	}
 	return p.Directory
 }
 
 func (p *Cache) GetDiskPath() string {
-	if !p.Created {
-		panic("cache not created")
+	if !p.Exists() {
+		panic("cache does not exist")
 	}
 	return filepath.Join(p.GetDirectory(), "disk.raw")
+}
+
+func (p *Cache) Lock(mode AccessMode) error {
+	p.lock = NewCacheLock(p.User.RunDir(), p.Directory)
+	locked, err := p.lock.TryLock(mode)
+	if err != nil {
+		return fmt.Errorf("error locking the cache path: %w", err)
+	}
+	if !locked {
+		return fmt.Errorf("unable to lock the cache path")
+	}
+
+	return nil
+}
+
+func (p *Cache) Unlock() error {
+	return p.lock.Unlock()
 }

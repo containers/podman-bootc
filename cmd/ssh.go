@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"gitlab.com/bootc-org/podman-bootc/pkg/cache"
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
 	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
@@ -32,21 +33,34 @@ func doSsh(_ *cobra.Command, args []string) error {
 
 	id := args[0]
 
+	//take a read only lock on the cache directory
+	fullImageId, err := utils.FullImageIdFromPartial(id, user)
+	if err != nil {
+		return err
+	}
+	cacheDir, err := cache.NewCache(fullImageId, user)
+	if err != nil {
+		return err
+	}
+	err = cacheDir.Lock(cache.Shared)
+	if err != nil {
+		return err
+	}
+
 	vm, err := vm.NewVM(vm.NewVMParameters{
 		ImageID:    id,
 		User:       user,
 		LibvirtUri: config.LibvirtUri,
-		Locking:    utils.Shared,
 	})
 
 	if err != nil {
 		return err
 	}
 
-	// Let's be explicit instead of relying on the defer exec order
 	defer func() {
+		// Let's be explicit instead of relying on the defer exec order
 		vm.CloseConnection()
-		if err := vm.Unlock(); err != nil {
+		if err := cacheDir.Unlock(); err != nil {
 			logrus.Warningf("unable to unlock VM %s: %v", id, err)
 		}
 	}()

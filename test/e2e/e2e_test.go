@@ -316,7 +316,6 @@ var _ = Describe("E2E", func() {
 		})
 	})
 
-
 	Context("Modifying disk size", Ordered, func() {
 		var vm *e2e.TestVM
 
@@ -370,7 +369,10 @@ var _ = Describe("E2E", func() {
 
 		AfterAll(func() {
 			vm.StdIn.Close()
-			e2e.Cleanup()
+			err := e2e.Cleanup()
+			if err != nil {
+				Fail(err.Error())
+			}
 		})
 	})
 })
