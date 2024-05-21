@@ -57,7 +57,8 @@ var _ = Describe("E2E", func() {
 			imagesListOutput, _, err := e2e.RunPodman("images", e2e.BaseImage, "--format", "json")
 			Expect(err).To(Not(HaveOccurred()))
 			imagesList := []map[string]interface{}{}
-			json.Unmarshal([]byte(imagesListOutput), &imagesList)
+			err = json.Unmarshal([]byte(imagesListOutput), &imagesList)
+			Expect(err).To(Not(HaveOccurred()))
 			Expect(imagesList).To(HaveLen(1))
 		})
 
@@ -78,7 +79,8 @@ var _ = Describe("E2E", func() {
 
 		It("should start an ssh session into the VM", func() {
 			// Send a command to the VM and check the output
-			vm.SendCommand("echo 'hello'", "hello")
+			err := vm.SendCommand("echo 'hello'", "hello")
+			Expect(err).To(Not(HaveOccurred()))
 			Expect(vm.StdOut[len(vm.StdOut)-1]).To(ContainSubstring("hello"))
 		})
 
@@ -165,7 +167,10 @@ var _ = Describe("E2E", func() {
 
 		AfterAll(func() {
 			vm.StdIn.Close()
-			e2e.Cleanup()
+			err := e2e.Cleanup()
+			if err != nil {
+				Fail(err.Error())
+			}
 		})
 	})
 
@@ -304,7 +309,10 @@ var _ = Describe("E2E", func() {
 			activeVM.StdIn.Close()
 			inactiveVM.StdIn.Close()
 			stoppedVM.StdIn.Close()
-			e2e.Cleanup()
+			err := e2e.Cleanup()
+			if err != nil {
+				Fail(err.Error())
+			}
 		})
 	})
 })

@@ -8,6 +8,9 @@ all: out_dir
 out_dir:
 	mkdir -p $(output_dir)
 
+lint:
+	golangci-lint --build-tags $(build_tags) run
+
 integration_tests:
 	ginkgo run -tags $(build_tags) --skip-package test ./...
 
