@@ -132,17 +132,13 @@ func deleteAllVMs() {
 
 	var flags libvirt.ConnectListAllDomainsFlags
 	domains, err := conn.ListAllDomains(flags)
+	Expect(err).To(Not(HaveOccurred()))
 	for _, domain := range domains {
 		err = domain.Destroy()
 		Expect(err).To(Not(HaveOccurred()))
 		err = domain.Undefine()
 		Expect(err).To(Not(HaveOccurred()))
 	}
-}
-
-func deleteCache() {
-	err := os.RemoveAll(testUser.CacheDir())
-	Expect(err).To(Not(HaveOccurred()))
 }
 
 var _ = Describe("VM", func() {

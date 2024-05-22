@@ -50,7 +50,10 @@ func (w *TestVM) WaitForBoot() (err error) {
 
 // SendCommand sends a command to the VM's stdin and waits for the output
 func (w *TestVM) SendCommand(cmd string, output string) (err error) {
-	w.StdIn.Write([]byte(cmd + "\n"))
+	_, err = w.StdIn.Write([]byte(cmd + "\n"))
+	if err != nil {
+		return fmt.Errorf("unable to write to VM stdin: %w", err)
+	}
 
 	timeout := 2 * time.Minute
 	interval := 1 * time.Second

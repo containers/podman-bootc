@@ -162,7 +162,10 @@ func doRun(flags *cobra.Command, args []string) error {
 			var vmConsoleWg sync.WaitGroup
 			vmConsoleWg.Add(1)
 			go func() {
-				bootcVM.PrintConsole()
+				err := bootcVM.PrintConsole()
+				if err != nil {
+					logrus.Errorf("error printing VM console: %v", err)
+				}
 			}()
 
 			err = bootcVM.WaitForSSHToBeReady()

@@ -92,12 +92,9 @@ type BootcVMCommon struct {
 	cmd           []string
 	pidFile       string
 	imageID       string
-	imageDigest   string
-	noCredentials bool
 	hasCloudInit  bool
 	cloudInitDir  string
 	cloudInitArgs string
-	bootcDisk     bootc.BootcDisk
 	cacheDirLock  utils.CacheLock
 }
 
