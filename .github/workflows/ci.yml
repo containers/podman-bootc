@@ -29,4 +29,4 @@ jobs:
           make lint
       - name: gofmt
         run: |
-          test -z $(gofmt -l .)
+          if test -z $(gofmt -l .); then exit 0; else gofmt -d -e . && exit 1; fi
