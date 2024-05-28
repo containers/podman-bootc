@@ -9,11 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
 	"gitlab.com/bootc-org/podman-bootc/pkg/config"
+	"gitlab.com/bootc-org/podman-bootc/pkg/container"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
 	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 
@@ -26,20 +26,9 @@ var ErrVMInUse = errors.New("VM already in use")
 
 // GetVMCachePath returns the path to the VM cache directory
 func GetVMCachePath(imageId string, user user.User) (longID string, path string, err error) {
-	files, err := os.ReadDir(user.CacheDir())
+	fullImageId, err := utils.FullImageIdFromPartial(imageId, user)
 	if err != nil {
-		return "", "", err
-	}
-
-	fullImageId := ""
-	for _, f := range files {
-		if f.IsDir() && len(f.Name()) == 64 && strings.HasPrefix(f.Name(), imageId) {
-			fullImageId = f.Name()
-		}
-	}
-
-	if fullImageId == "" {
-		return "", "", fmt.Errorf("local installation '%s' does not exists", imageId)
+		return "", "", fmt.Errorf("error getting full image ID: %w", err)
 	}
 
 	return fullImageId, filepath.Join(user.CacheDir(), fullImageId), nil
@@ -49,7 +38,6 @@ type NewVMParameters struct {
 	ImageID    string
 	User       user.User //user who is running the podman bootc command
 	LibvirtUri string    //linux only
-	Locking    utils.AccessMode
 }
 
 type RunVMParameters struct {
@@ -68,7 +56,7 @@ type BootcVM interface {
 	Run(RunVMParameters) error
 	Delete() error
 	IsRunning() (bool, error)
-	WriteConfig(bootc.BootcDisk) error
+	WriteConfig(bootc.BootcDisk, container.ContainerImage) error
 	WaitForSSHToBeReady() error
 	RunSSH([]string) error
 	DeleteFromCache() error
@@ -76,7 +64,6 @@ type BootcVM interface {
 	GetConfig() (*BootcVMConfig, error)
 	CloseConnection()
 	PrintConsole() error
-	Unlock() error
 }
 
 type BootcVMCommon struct {
@@ -95,7 +82,6 @@ type BootcVMCommon struct {
 	hasCloudInit  bool
 	cloudInitDir  string
 	cloudInitArgs string
-	cacheDirLock  utils.CacheLock
 }
 
 type BootcVMConfig struct {
@@ -109,7 +95,7 @@ type BootcVMConfig struct {
 }
 
 // writeConfig writes the configuration for the VM to the disk
-func (v *BootcVMCommon) WriteConfig(bootcDisk bootc.BootcDisk) error {
+func (v *BootcVMCommon) WriteConfig(bootcDisk bootc.BootcDisk, containerImage container.ContainerImage) error {
 	size, err := bootcDisk.GetSize()
 	if err != nil {
 		return fmt.Errorf("get disk size: %w", err)
@@ -118,7 +104,7 @@ func (v *BootcVMCommon) WriteConfig(bootcDisk bootc.BootcDisk) error {
 		Id:          v.imageID[0:12],
 		SshPort:     v.sshPort,
 		SshIdentity: v.sshIdentity,
-		RepoTag:     bootcDisk.GetRepoTag(),
+		RepoTag:     containerImage.GetRepoTag(),
 		Created:     bootcDisk.GetCreatedAt().Format(time.RFC3339),
 		DiskSize:    strconv.FormatInt(size, 10),
 	}
@@ -279,32 +265,4 @@ func (b *BootcVMCommon) tmpFileInjectSshKeyEnc() (string, error) {
 
 	tmpFileCmdEnc := base64.StdEncoding.EncodeToString([]byte(tmpFileCmd))
 	return tmpFileCmdEnc, nil
-}
-
-func lockVM(params NewVMParameters, cacheDir string) (utils.CacheLock, error) {
-	lock := utils.NewCacheLock(params.User.RunDir(), cacheDir)
-	locked, err := lock.TryLock(params.Locking)
-	if err != nil {
-		return lock, fmt.Errorf("unable to lock the VM cache path: %w", err)
-	}
-
-	if !locked {
-		return lock, ErrVMInUse
-	}
-
-	cacheDirExists, err := utils.FileExists(cacheDir)
-	if err != nil {
-		if err := lock.Unlock(); err != nil {
-			logrus.Debugf("unlock failed: %v", err)
-		}
-		return lock, fmt.Errorf("unable to check cache path: %w", err)
-	}
-	if !cacheDirExists {
-		if err := lock.Unlock(); err != nil {
-			logrus.Debugf("unlock failed: %v", err)
-		}
-		return lock, fmt.Errorf("'%s' does not exists", params.ImageID)
-	}
-
-	return lock, nil
 }

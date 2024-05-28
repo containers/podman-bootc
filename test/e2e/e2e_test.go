@@ -315,4 +315,64 @@ var _ = Describe("E2E", func() {
 			}
 		})
 	})
+
+	Context("Modifying disk size", Ordered, func() {
+		var vm *e2e.TestVM
+
+		BeforeAll(func() {
+			var err error
+			vm, err = e2e.BootVM(e2e.BaseImage, "--disk-size", "25G")
+			Expect(err).To(Not(HaveOccurred()))
+		})
+
+		It("Should create a new VM with a specific disk size", func() {
+			vmDirs, err := e2e.ListCacheDirs()
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(vmDirs).To(HaveLen(1))
+
+			fileInfo, err := os.Stat(filepath.Join(vmDirs[0], config.DiskImage))
+			Expect(err).To(Not(HaveOccurred()))
+
+			Expect(fileInfo.Size()).To(Equal(int64(25000001536)))
+		})
+
+		It("Should fail to resize a VM's disk size while the VM is running", func() {
+			_, _, err := e2e.RunPodmanBootc("run", e2e.BaseImage, "--disk-size", "26G")
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("Should resize an existing VM's disk size", func() {
+			//stop the VM first
+			err := vm.StdIn.Close()
+			Expect(err).To(Not(HaveOccurred()))
+			_, _, err = e2e.RunPodmanBootc("stop", vm.Id)
+			Expect(err).To(Not(HaveOccurred()))
+
+			Eventually(func() bool {
+				vmExists, err := e2e.VMExists(vm.Id)
+				Expect(err).To(Not(HaveOccurred()))
+				return vmExists
+			}).Should(BeFalse())
+
+			//resize the disk
+			vm, err = e2e.BootVM(e2e.BaseImage, "--disk-size", "27G")
+			Expect(err).To(Not(HaveOccurred()))
+
+			//verify the disk size
+			vmDirs, err := e2e.ListCacheDirs()
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(vmDirs).To(HaveLen(1))
+			fileInfo, err := os.Stat(filepath.Join(vmDirs[0], config.DiskImage))
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(fileInfo.Size()).To(Equal(int64(27000000512)))
+		})
+
+		AfterAll(func() {
+			vm.StdIn.Close()
+			err := e2e.Cleanup()
+			if err != nil {
+				Fail(err.Error())
+			}
+		})
+	})
 })

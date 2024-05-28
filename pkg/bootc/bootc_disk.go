@@ -13,12 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"gitlab.com/bootc-org/podman-bootc/pkg/config"
+	"gitlab.com/bootc-org/podman-bootc/pkg/cache"
+	"gitlab.com/bootc-org/podman-bootc/pkg/container"
 	"gitlab.com/bootc-org/podman-bootc/pkg/user"
-	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
 
 	"github.com/containers/podman/v5/pkg/bindings/containers"
-	"github.com/containers/podman/v5/pkg/bindings/images"
 	"github.com/containers/podman/v5/pkg/domain/entities/types"
 	"github.com/containers/podman/v5/pkg/specgen"
 	"github.com/docker/go-units"
@@ -62,16 +61,14 @@ type diskFromContainerMeta struct {
 }
 
 type BootcDisk struct {
-	ImageNameOrId           string
+	ContainerImage          container.ContainerImage
+	Cache                   cache.Cache
 	User                    user.User
 	Ctx                     context.Context
-	ImageId                 string
-	imageData               *types.ImageInspectReport
-	RepoTag                 string
 	CreatedAt               time.Time
-	Directory               string
 	file                    *os.File
 	bootcInstallContainerId string
+	bustCache               bool
 }
 
 // create singleton for easy cleanup
@@ -80,38 +77,35 @@ var (
 	instanceOnce sync.Once
 )
 
-func NewBootcDisk(imageNameOrId string, ctx context.Context, user user.User) *BootcDisk {
+// NewBootcDisk creates a new BootcDisk instance
+//
+// Parameters:
+//   - imageNameOrId: the name or id of the container image
+//   - ctx: context for the podman machine connection
+//   - user: the user who is running the command, determines where the disk image is stored
+//   - cache: the cache to use for storing the disk image
+//   - bustCache: whether to force a new disk image to be created
+func NewBootcDisk(containerImage container.ContainerImage, ctx context.Context, user user.User, cache cache.Cache, bustCache bool) *BootcDisk {
 	instanceOnce.Do(func() {
 		instance = &BootcDisk{
-			ImageNameOrId: imageNameOrId,
-			Ctx:           ctx,
-			User:          user,
+			ContainerImage: containerImage,
+			Ctx:            ctx,
+			User:           user,
+			Cache:          cache,
+			bustCache:      bustCache,
 		}
 	})
 	return instance
 }
 
-func (p *BootcDisk) GetDirectory() string {
-	return p.Directory
-}
-
-func (p *BootcDisk) GetImageId() string {
-	return p.ImageId
-}
-
 // GetSize returns the virtual size of the disk in bytes;
 // this may be larger than the actual disk usage
 func (p *BootcDisk) GetSize() (int64, error) {
-	st, err := os.Stat(filepath.Join(p.Directory, config.DiskImage))
+	st, err := os.Stat(p.Cache.GetDiskPath())
 	if err != nil {
 		return 0, err
 	}
 	return st.Size(), nil
-}
-
-// GetRepoTag returns the repository of the container image
-func (p *BootcDisk) GetRepoTag() string {
-	return p.RepoTag
 }
 
 // GetCreatedAt returns the creation time of the disk image
@@ -121,32 +115,6 @@ func (p *BootcDisk) GetCreatedAt() time.Time {
 
 func (p *BootcDisk) Install(quiet bool, config DiskImageConfig) (err error) {
 	p.CreatedAt = time.Now()
-
-	err = p.pullImage()
-	if err != nil {
-		return
-	}
-
-	// Create VM cache dir; one per oci bootc image
-	p.Directory = filepath.Join(p.User.CacheDir(), p.ImageId)
-	lock := utils.NewCacheLock(p.User.RunDir(), p.Directory)
-	locked, err := lock.TryLock(utils.Exclusive)
-	if err != nil {
-		return fmt.Errorf("error locking the VM cache path: %w", err)
-	}
-	if !locked {
-		return fmt.Errorf("unable to lock the VM cache path")
-	}
-
-	defer func() {
-		if err := lock.Unlock(); err != nil {
-			logrus.Errorf("unable to unlock VM %s: %v", p.ImageId, err)
-		}
-	}()
-
-	if err := os.MkdirAll(p.Directory, os.ModePerm); err != nil {
-		return fmt.Errorf("error while making bootc disk directory: %w", err)
-	}
 
 	err = p.getOrInstallImageToDisk(quiet, config)
 	if err != nil {
@@ -173,7 +141,7 @@ func (p *BootcDisk) Cleanup() (err error) {
 
 // getOrInstallImageToDisk checks if the disk is present and if not, installs the image to a new disk
 func (p *BootcDisk) getOrInstallImageToDisk(quiet bool, diskConfig DiskImageConfig) error {
-	diskPath := filepath.Join(p.Directory, config.DiskImage)
+	diskPath := p.Cache.GetDiskPath()
 	f, err := os.Open(diskPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -182,13 +150,25 @@ func (p *BootcDisk) getOrInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 		logrus.Debugf("No existing disk image found")
 		return p.bootcInstallImageToDisk(quiet, diskConfig)
 	}
+	if p.bustCache {
+		logrus.Debug("Found existing disk image but cache busting is enabled, removing and recreating")
+		err = os.Remove(diskPath)
+		if err != nil {
+			return err
+		}
+		return p.bootcInstallImageToDisk(quiet, diskConfig)
+	}
+
 	logrus.Debug("Found existing disk image, comparing digest")
 	defer f.Close()
 	buf := make([]byte, 4096)
 	len, err := unix.Fgetxattr(int(f.Fd()), imageMetaXattr, buf)
 	if err != nil {
 		// If there's no xattr, just remove it
-		os.Remove(diskPath)
+		err = os.Remove(diskPath)
+		if err != nil {
+			return err
+		}
 		logrus.Debugf("No %s xattr found", imageMetaXattr)
 		return p.bootcInstallImageToDisk(quiet, diskConfig)
 	}
@@ -199,8 +179,8 @@ func (p *BootcDisk) getOrInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 		return p.bootcInstallImageToDisk(quiet, diskConfig)
 	}
 
-	logrus.Debugf("previous disk digest: %s current digest: %s", serializedMeta.ImageDigest, p.ImageId)
-	if serializedMeta.ImageDigest == p.ImageId {
+	logrus.Debugf("previous disk digest: %s current digest: %s", serializedMeta.ImageDigest, p.ContainerImage.GetId())
+	if serializedMeta.ImageDigest == p.ContainerImage.GetId() {
 		return nil
 	}
 
@@ -217,12 +197,12 @@ func align(size int64, align int64) int64 {
 
 // bootcInstallImageToDisk creates a disk image from a bootc container
 func (p *BootcDisk) bootcInstallImageToDisk(quiet bool, diskConfig DiskImageConfig) (err error) {
-	fmt.Printf("Executing `bootc install to-disk` from container image %s to create disk image\n", p.RepoTag)
-	p.file, err = os.CreateTemp(p.Directory, "podman-bootc-tempdisk")
+	fmt.Printf("Executing `bootc install to-disk` from container image %s to create disk image\n", p.ContainerImage.GetRepoTag())
+	p.file, err = os.CreateTemp(p.Cache.GetDirectory(), "podman-bootc-tempdisk")
 	if err != nil {
 		return err
 	}
-	size := p.imageData.Size * containerSizeToDiskSizeMultiplier
+	size := p.ContainerImage.GetSize() * containerSizeToDiskSizeMultiplier
 	if size < diskSizeMinimum {
 		size = diskSizeMinimum
 	}
@@ -237,7 +217,7 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 	}
 	// Round up to 4k; loopback wants at least 512b alignment
 	size = align(size, 4096)
-	humanContainerSize := units.HumanSize(float64(p.imageData.Size))
+	humanContainerSize := units.HumanSize(float64(p.ContainerImage.GetSize()))
 	humanSize := units.HumanSize(float64(size))
 	logrus.Infof("container size: %s, disk size: %s", humanContainerSize, humanSize)
 
@@ -257,7 +237,7 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 		return fmt.Errorf("failed to create disk image: %w", err)
 	}
 	serializedMeta := diskFromContainerMeta{
-		ImageDigest: p.ImageId,
+		ImageDigest: p.ContainerImage.GetId(),
 	}
 	buf, err := json.Marshal(serializedMeta)
 	if err != nil {
@@ -266,8 +246,8 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 	if err := unix.Fsetxattr(int(p.file.Fd()), imageMetaXattr, buf, 0); err != nil {
 		return fmt.Errorf("failed to set xattr: %w", err)
 	}
-	diskPath := filepath.Join(p.Directory, config.DiskImage)
 
+	diskPath := p.Cache.GetDiskPath()
 	if err := os.Rename(p.file.Name(), diskPath); err != nil {
 		return fmt.Errorf("failed to rename to %s: %w", diskPath, err)
 	}
@@ -276,39 +256,10 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 	return nil
 }
 
-// pullImage fetches the container image if not present
-func (p *BootcDisk) pullImage() (err error) {
-	pullPolicy := "missing"
-	ids, err := images.Pull(p.Ctx, p.ImageNameOrId, &images.PullOptions{Policy: &pullPolicy})
-	if err != nil {
-		return fmt.Errorf("failed to pull image: %w", err)
-	}
-
-	if len(ids) == 0 {
-		return fmt.Errorf("no ids returned from image pull")
-	}
-
-	if len(ids) > 1 {
-		return fmt.Errorf("multiple ids returned from image pull")
-	}
-
-	image, err := images.GetImage(p.Ctx, p.ImageNameOrId, &images.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get image: %w", err)
-	}
-	p.imageData = image
-
-	imageId := ids[0]
-	p.ImageId = imageId
-	p.RepoTag = image.RepoTags[0]
-
-	return
-}
-
 // runInstallContainer runs the bootc installer in a container to create a disk image
 func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) (err error) {
 	// Create a temporary external shell script with the contents of our losetup wrapper
-	losetupTemp, err := os.CreateTemp(p.Directory, "losetup-wrapper")
+	losetupTemp, err := os.CreateTemp(p.Cache.GetDirectory(), "losetup-wrapper")
 	if err != nil {
 		return fmt.Errorf("temp losetup wrapper: %w", err)
 	}
@@ -393,7 +344,7 @@ func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup s
 			Terminal:    &trueDat,
 		},
 		ContainerStorageConfig: specgen.ContainerStorageConfig{
-			Image: p.ImageNameOrId,
+			Image: p.ContainerImage.ImageNameOrId,
 			Mounts: []specs.Mount{
 				{
 					Source:      "/var/lib/containers",
@@ -406,7 +357,7 @@ func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup s
 					Type:        "bind",
 				},
 				{
-					Source:      p.Directory,
+					Source:      p.Cache.GetDirectory(),
 					Destination: "/output",
 					Type:        "bind",
 				},
