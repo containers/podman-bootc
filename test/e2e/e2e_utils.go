@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/bootc-org/podman-bootc/pkg/user"
+	"github.com/containers/podman-bootc/pkg/user"
 )
 
 const DefaultBaseImage = "quay.io/centos-bootc/centos-bootc-dev:stream9"

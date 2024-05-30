@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
-	"gitlab.com/bootc-org/podman-bootc/pkg/config"
-	"gitlab.com/bootc-org/podman-bootc/pkg/user"
-	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
-	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
+	"github.com/containers/podman-bootc/pkg/bootc"
+	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/user"
+	"github.com/containers/podman-bootc/pkg/utils"
+	"github.com/containers/podman-bootc/pkg/vm"
 
 	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/sirupsen/logrus"

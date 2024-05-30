@@ -1,4 +1,4 @@
-module gitlab.com/bootc-org/podman-bootc
+module github.com/containers/podman-bootc
 
 go 1.20
 

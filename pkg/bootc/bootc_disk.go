@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"gitlab.com/bootc-org/podman-bootc/pkg/config"
-	"gitlab.com/bootc-org/podman-bootc/pkg/user"
-	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
+	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/user"
+	"github.com/containers/podman-bootc/pkg/utils"
 
 	"github.com/containers/podman/v5/pkg/bindings/containers"
 	"github.com/containers/podman/v5/pkg/bindings/images"

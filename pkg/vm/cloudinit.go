@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"gitlab.com/bootc-org/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/config"
 )
 
 func (b *BootcVMCommon) ParseCloudInit() (err error) {

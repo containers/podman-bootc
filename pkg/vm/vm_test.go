@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/bootc-org/podman-bootc/cmd"
-	"gitlab.com/bootc-org/podman-bootc/pkg/bootc"
-	"gitlab.com/bootc-org/podman-bootc/pkg/user"
-	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
-	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
+	"github.com/containers/podman-bootc/cmd"
+	"github.com/containers/podman-bootc/pkg/bootc"
+	"github.com/containers/podman-bootc/pkg/user"
+	"github.com/containers/podman-bootc/pkg/utils"
+	"github.com/containers/podman-bootc/pkg/vm"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

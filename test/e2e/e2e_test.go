@@ -20,8 +20,8 @@ import (
 	"sync"
 	"testing"
 
-	"gitlab.com/bootc-org/podman-bootc/pkg/config"
-	"gitlab.com/bootc-org/podman-bootc/test/e2e"
+	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/test/e2e"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

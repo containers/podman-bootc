@@ -3,10 +3,10 @@ package cmd
 import (
 	"os"
 
-	"gitlab.com/bootc-org/podman-bootc/pkg/config"
-	"gitlab.com/bootc-org/podman-bootc/pkg/user"
-	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
-	"gitlab.com/bootc-org/podman-bootc/pkg/vm"
+	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/user"
+	"github.com/containers/podman-bootc/pkg/utils"
+	"github.com/containers/podman-bootc/pkg/vm"
 
 	"github.com/containers/common/pkg/report"
 	"github.com/sirupsen/logrus"
