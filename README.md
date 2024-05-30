@@ -35,6 +35,12 @@ brew tap germag/podman-bootc
 brew install podman-bootc
 ```
 
+alternatively, you can download the latest development cutting-edge source
+
+```
+brew install --head podman-bootc
+```
+
 It will install xorriso and libvirt, but it doesn't install qemu.
 You need to install qemu manually, using brew:
 ```
