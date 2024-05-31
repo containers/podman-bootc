@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitlab.com/bootc-org/podman-bootc/pkg/config"
-	"gitlab.com/bootc-org/podman-bootc/pkg/utils"
+	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/utils"
 
 	"github.com/sirupsen/logrus"
 )

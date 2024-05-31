@@ -1,7 +1,7 @@
 package e2e
 
 import (
-	"gitlab.com/bootc-org/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/config"
 
 	"libvirt.org/go/libvirt"
 )
