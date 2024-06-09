@@ -16,18 +16,19 @@ Requirements:
 - [bootc extension requirements](https://github.com/containers/podman-desktop-extension-bootc?tab=readme-ov-file#requirements)
   - (Even on Linux, you *must* set up `podman machine` with a rootful connection; see below)
   - `podman machine init --rootful && podman machine start`
-- qemu-system-x86_64/qemu-system-aarch64
+- qemu-system-x86_64 / qemu-system-aarch64
 - xorriso/osirrox
 - golang
 - libvirt-devel
 
 
-To compile it just run in the project directory
+To compile it, just run in the project directory:
 
 ```shell
 make
 ```
 
+### MacOS
 On MacOS you can use homebrew to install podman-bootc
 
 ```
@@ -47,6 +48,21 @@ You need to install qemu manually, using brew:
 brew install qemu
 ```
 or by other mean and make it available in the path.
+
+### Fedora
+For Fedora 40 and Rawhide we provide a COPR repository.
+First, enable the COPR repository:
+
+```
+sudo dnf -y install 'dnf-command(copr)'
+sudo dnf -y copr enable gmaglione/podman-bootc
+```
+
+then you can install `podman-bootc` as usual:
+
+```
+sudo dnf -y install podman-bootc
+```
 
 
 ## Running
