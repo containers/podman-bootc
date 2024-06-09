@@ -27,3 +27,15 @@ jobs:
     targets:
       - fedora-all-x86_64
 
+  - job: copr_build
+    trigger: commit
+    enable_net: true
+    branch: main
+    owner: gmaglione
+    project: podman-bootc
+    list_on_homepage: true
+    preserve_project: true
+    targets:
+      - fedora-latest
+      - fedora-rawhide
+
