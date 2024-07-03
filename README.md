@@ -15,7 +15,7 @@ Requirements:
 
 - [bootc extension requirements](https://github.com/containers/podman-desktop-extension-bootc?tab=readme-ov-file#requirements)
   - (Even on Linux, you *must* set up `podman machine` with a rootful connection; see below)
-  - `podman machine init --rootful && podman machine start`
+  - `podman machine init --rootful --now`
 - qemu-system-x86_64 / qemu-system-aarch64
 - xorriso/osirrox
 - golang
