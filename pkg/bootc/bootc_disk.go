@@ -342,7 +342,7 @@ func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) (err
 	var exitCode int32
 	if !quiet {
 		attachOpts := new(containers.AttachOptions).WithStream(true)
-		if err := containers.Attach(attachCancelCtx, p.bootcInstallContainerId, nil, os.Stdout, os.Stderr, nil, attachOpts); err != nil {
+		if err := containers.Attach(attachCancelCtx, p.bootcInstallContainerId, os.Stdin, os.Stdout, os.Stderr, nil, attachOpts); err != nil {
 			return fmt.Errorf("attaching: %w", err)
 		}
 	}
