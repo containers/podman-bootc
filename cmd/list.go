@@ -1,11 +1,12 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/define"
 	"github.com/containers/podman-bootc/pkg/user"
-	"github.com/containers/podman-bootc/pkg/utils"
 	"github.com/containers/podman-bootc/pkg/vm"
 
 	"github.com/containers/common/pkg/report"
@@ -60,46 +61,49 @@ func doList(_ *cobra.Command, _ []string) error {
 }
 
 func CollectVmList(user user.User, libvirtUri string) (vmList []vm.BootcVMConfig, err error) {
-	files, err := os.ReadDir(user.CacheDir())
+	ids, err := user.Storage().List()
 	if err != nil {
 		return nil, err
 	}
 
-	for _, f := range files {
-		if f.IsDir() {
-			cfg, err := getVMInfo(user, libvirtUri, f.Name())
-			if err != nil {
-				logrus.Warningf("skipping vm %s reason: %v", f.Name(), err)
-				continue
-			}
-
-			vmList = append(vmList, *cfg)
+	for _, id := range ids {
+		cfg, err := getVMInfo(user, libvirtUri, id)
+		if err != nil {
+			logrus.Warningf("skipping vm %s reason: %v", id, err)
+			continue
 		}
+
+		vmList = append(vmList, *cfg)
 	}
 	return vmList, nil
 }
 
-func getVMInfo(user user.User, libvirtUri string, imageId string) (*vm.BootcVMConfig, error) {
+func getVMInfo(user user.User, libvirtUri string, imageId define.FullImageId) (*vm.BootcVMConfig, error) {
+	guard, unlock, err := user.Storage().Get(imageId)
+	if err != nil {
+		return nil, fmt.Errorf("unable to lock the VM cache: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			logrus.Warningf("unable to unlock VM %s: %v", imageId, err)
+		}
+	}()
+
 	bootcVM, err := vm.NewVM(vm.NewVMParameters{
-		ImageID:    imageId,
+		ImageID:    string(imageId),
 		User:       user,
 		LibvirtUri: libvirtUri,
-		Locking:    utils.Shared,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Let's be explicit instead of relying on the defer exec order
 	defer func() {
 		bootcVM.CloseConnection()
-		if err := bootcVM.Unlock(); err != nil {
-			logrus.Warningf("unable to unlock VM %s: %v", imageId, err)
-		}
 	}()
 
-	cfg, err := bootcVM.GetConfig()
+	cfg, err := bootcVM.GetConfig(guard)
 	if err != nil {
 		return nil, err
 	}

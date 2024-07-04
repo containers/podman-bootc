@@ -10,6 +10,7 @@ import (
 
 	"github.com/containers/podman-bootc/pkg/bootc"
 	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/define"
 	"github.com/containers/podman-bootc/pkg/user"
 	"github.com/containers/podman-bootc/pkg/utils"
 	"github.com/containers/podman-bootc/pkg/vm"
@@ -116,11 +117,20 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to get free port for SSH: %w", err)
 	}
 
+	guard, unlock, err := user.Storage().Get(define.FullImageId(bootcDisk.GetImageId()))
+	if err != nil {
+		return fmt.Errorf("unable to lock the VM cache: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			logrus.Warningf("unable to unlock VM %s: %v", bootcDisk.GetImageId(), err)
+		}
+	}()
+
 	bootcVM, err := vm.NewVM(vm.NewVMParameters{
 		ImageID:    bootcDisk.GetImageId(),
 		User:       user,
 		LibvirtUri: config.LibvirtUri,
-		Locking:    utils.Shared,
 	})
 
 	if err != nil {
@@ -130,9 +140,6 @@ func doRun(flags *cobra.Command, args []string) error {
 	// Let's be explicit instead of relying on the defer exec order
 	defer func() {
 		bootcVM.CloseConnection()
-		if err := bootcVM.Unlock(); err != nil {
-			logrus.Warningf("unable to unlock VM %s: %v", bootcDisk.GetImageId(), err)
-		}
 	}()
 
 	cmd := args[1:]
@@ -153,6 +160,7 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	// write down the config file
+	// FIXME: we are writing the config using a shared guard
 	if err = bootcVM.WriteConfig(*bootcDisk); err != nil {
 		return err
 	}
@@ -191,7 +199,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		}
 
 		// ssh into the VM
-		ExitCode, err = utils.WithExitCode(bootcVM.RunSSH(cmd))
+		ExitCode, err = utils.WithExitCode(bootcVM.RunSSH(guard, cmd))
 		if err != nil {
 			return fmt.Errorf("ssh: %w", err)
 		}

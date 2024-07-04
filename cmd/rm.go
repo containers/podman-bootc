@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/define"
 	"github.com/containers/podman-bootc/pkg/user"
-	"github.com/containers/podman-bootc/pkg/utils"
 	"github.com/containers/podman-bootc/pkg/vm"
 
 	"github.com/sirupsen/logrus"
@@ -44,35 +43,49 @@ func oneOrAll() cobra.PositionalArgs {
 }
 
 func doRemove(_ *cobra.Command, args []string) error {
-	if removeAll {
-		return pruneAll()
-	}
-
-	return prune(args[0])
-}
-
-func prune(id string) error {
-	user, err := user.NewUser()
+	usr, err := user.NewUser()
 	if err != nil {
 		return err
 	}
 
+	if removeAll {
+		return pruneAll(usr)
+	}
+
+	id := args[0]
+	fullImageId, err := usr.Storage().SearchByPrefix(id)
+	if err != nil {
+		return fmt.Errorf("searching for ID %s: %w", id, err)
+	}
+	if fullImageId == nil {
+		return fmt.Errorf("local installation '%s' does not exists", id)
+	}
+
+	return prune(usr, *fullImageId)
+}
+
+func prune(usr user.User, id define.FullImageId) error {
+	_, unlock, err := usr.Storage().GetExclusiveOrAdd(id)
+	if err != nil {
+		return fmt.Errorf("unable to lock the VM cache: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			logrus.Errorf("unable to unlock VM %s: %v", id, err)
+		}
+	}()
+
 	bootcVM, err := vm.NewVM(vm.NewVMParameters{
-		ImageID:    id,
+		ImageID:    string(id),
 		LibvirtUri: config.LibvirtUri,
-		User:       user,
-		Locking:    utils.Exclusive,
+		User:       usr,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to get VM %s: %v", id, err)
 	}
 
-	// Let's be explicit instead of relying on the defer exec order
 	defer func() {
 		bootcVM.CloseConnection()
-		if err := bootcVM.Unlock(); err != nil {
-			logrus.Warningf("unable to unlock VM %s: %v", id, err)
-		}
 	}()
 
 	if force {
@@ -90,24 +103,16 @@ func prune(id string) error {
 	return nil
 }
 
-func pruneAll() error {
-	user, err := user.NewUser()
+func pruneAll(usr user.User) error {
+	ids, err := usr.Storage().List()
 	if err != nil {
 		return err
 	}
 
-	files, err := os.ReadDir(user.CacheDir())
-	if err != nil {
-		return err
-	}
-
-	for _, f := range files {
-		if f.IsDir() {
-			vmID := f.Name()
-			err := prune(vmID)
-			if err != nil {
-				logrus.Errorf("unable to remove %s: %v", vmID, err)
-			}
+	for _, id := range ids {
+		err := prune(usr, id)
+		if err != nil {
+			logrus.Errorf("unable to remove %s: %v", id, err)
 		}
 	}
 

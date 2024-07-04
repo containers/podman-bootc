@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/storage"
 
 	"github.com/sirupsen/logrus"
 	"libvirt.org/go/libvirt"
@@ -44,11 +45,6 @@ func NewVM(params NewVMParameters) (vm *BootcVMLinux, err error) {
 		return nil, fmt.Errorf("unable to get VM cache path: %w", err)
 	}
 
-	lock, err := lockVM(params, cacheDir)
-	if err != nil {
-		return nil, err
-	}
-
 	vm = &BootcVMLinux{
 		libvirtUri: params.LibvirtUri,
 		BootcVMCommon: BootcVMCommon{
@@ -57,23 +53,19 @@ func NewVM(params NewVMParameters) (vm *BootcVMLinux, err error) {
 			cacheDir:      cacheDir,
 			diskImagePath: filepath.Join(cacheDir, config.DiskImage),
 			user:          params.User,
-			cacheDirLock:  lock,
 		},
 	}
 
 	err = vm.loadExistingDomain()
 	if err != nil {
-		if err := vm.Unlock(); err != nil {
-			logrus.Debugf("unlock failed: %v", err)
-		}
 		return vm, fmt.Errorf("unable to load existing libvirt domain: %w", err)
 	}
 
 	return vm, nil
 }
 
-func (v *BootcVMLinux) GetConfig() (cfg *BootcVMConfig, err error) {
-	cfg, err = v.LoadConfigFile()
+func (v *BootcVMLinux) GetConfig(guard *storage.ReadOnlyGuard) (cfg *BootcVMConfig, err error) {
+	cfg, err = v.LoadConfigFile(guard)
 	if err != nil {
 		return
 	}
@@ -369,8 +361,4 @@ func (v *BootcVMLinux) IsRunning() (exists bool, err error) {
 	} else {
 		return false, nil
 	}
-}
-
-func (v *BootcVMLinux) Unlock() error {
-	return v.cacheDirLock.Unlock()
 }

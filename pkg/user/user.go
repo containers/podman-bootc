@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/storage"
 
 	"github.com/adrg/xdg"
 	"github.com/containers/podman/v5/pkg/rootless"
@@ -15,6 +16,7 @@ import (
 
 type User struct {
 	OSUser *user.User
+	Stor   *storage.Bucket
 }
 
 func NewUser() (u User, err error) {
@@ -31,8 +33,12 @@ func NewUser() (u User, err error) {
 		return u, fmt.Errorf("failed to get user: %w", err)
 	}
 
+	cacheDir := filepath.Join(osUser.HomeDir, config.CacheDir, config.ProjectName)
+	runDir := filepath.Join(xdg.RuntimeDir, config.ProjectName, "run")
+
 	return User{
 		OSUser: osUser,
+		Stor:   storage.NewBucket(cacheDir, runDir),
 	}, nil
 }
 
@@ -50,6 +56,10 @@ func (u *User) SSHDir() string {
 
 func (u *User) CacheDir() string {
 	return filepath.Join(u.HomeDir(), config.CacheDir, config.ProjectName)
+}
+
+func (u *User) Storage() *storage.Bucket {
+	return u.Stor
 }
 
 func (u *User) DefaultIdentity() string {
