@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/containers/podman-bootc/pkg/bootc"
@@ -68,7 +67,7 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	//podman machine connection
-	machineInfo, err := utils.GetMachineInfo(user)
+	machineInfo, err := utils.GetMachineInfo()
 	if err != nil {
 		return err
 	}
@@ -159,8 +158,6 @@ func doRun(flags *cobra.Command, args []string) error {
 
 	if !vmConfig.Background {
 		if !vmConfig.Quiet {
-			var vmConsoleWg sync.WaitGroup
-			vmConsoleWg.Add(1)
 			go func() {
 				err := bootcVM.PrintConsole()
 				if err != nil {
@@ -172,8 +169,6 @@ func doRun(flags *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("WaitSshReady: %w", err)
 			}
-
-			vmConsoleWg.Done() //stop printing the VM console when SSH is ready
 
 			// the PrintConsole routine is suddenly stopped without waiting for
 			// the print buffer to be flushed, this can lead to the consoel output

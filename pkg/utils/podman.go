@@ -7,8 +7,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/containers/podman-bootc/pkg/user"
-
 	"github.com/containers/podman/v5/pkg/machine"
 	"github.com/containers/podman/v5/pkg/machine/define"
 	"github.com/containers/podman/v5/pkg/machine/env"
@@ -22,13 +20,13 @@ type MachineInfo struct {
 	Rootful         bool
 }
 
-func GetMachineInfo(user user.User) (*MachineInfo, error) {
+func GetMachineInfo() (*MachineInfo, error) {
 	minfo, err := getMachineInfo()
 	if err != nil {
 		var errIncompatibleMachineConfig *define.ErrIncompatibleMachineConfig
 		var errVMDoesNotExist *define.ErrVMDoesNotExist
 		if errors.As(err, &errIncompatibleMachineConfig) || errors.As(err, &errVMDoesNotExist) {
-			minfo, err := getPv4MachineInfo(user)
+			minfo, err := getPv4MachineInfo()
 			if err != nil {
 				return nil, err
 			}
@@ -71,7 +69,7 @@ func getMachineInfo() (*MachineInfo, error) {
 }
 
 // Just to support podman v4.9, it will be removed in the future
-func getPv4MachineInfo(user user.User) (*MachineInfo, error) {
+func getPv4MachineInfo() (*MachineInfo, error) {
 	//check if a default podman machine exists
 	listCmd := exec.Command("podman", "machine", "list", "--format", "json")
 	var listCmdOutput strings.Builder

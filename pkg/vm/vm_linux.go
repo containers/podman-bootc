@@ -287,16 +287,6 @@ func (v *BootcVMLinux) loadExistingDomain() (err error) {
 		}
 	}
 
-	// if domain exists, load it's config
-	if v.domain != nil {
-		cfg, err := v.GetConfig()
-		if err != nil {
-			return fmt.Errorf("unable to load VM config: %w", err)
-		}
-		v.sshPort = cfg.SshPort
-		v.sshIdentity = cfg.SshIdentity
-	}
-
 	return nil
 }
 
