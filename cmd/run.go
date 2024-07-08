@@ -1,10 +1,7 @@
 package cmd
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/containers/podman-bootc/pkg/bootc"
@@ -13,7 +10,6 @@ import (
 	"github.com/containers/podman-bootc/pkg/utils"
 	"github.com/containers/podman-bootc/pkg/vm"
 
-	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -66,42 +62,16 @@ func doRun(flags *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to get user: %w", err)
 	}
 
-	//podman machine connection
-	machineInfo, err := utils.GetMachineInfo()
-	if err != nil {
-		return err
-	}
-
-	if machineInfo == nil {
-		println(utils.PodmanMachineErrorMessage)
-		return errors.New("rootful podman machine is required, please run 'podman machine init --rootful'")
-	}
-
-	if !machineInfo.Rootful {
-		println(utils.PodmanMachineErrorMessage)
-		return errors.New("rootful podman machine is required, please run 'podman machine set --rootful'")
-	}
-
-	if _, err := os.Stat(machineInfo.PodmanSocket); err != nil {
-		println(utils.PodmanMachineErrorMessage)
-		logrus.Errorf("podman machine socket is missing. Is podman machine running?\n%s", err)
-		return err
-	}
-
-	ctx, err := bindings.NewConnectionWithIdentity(
-		context.Background(),
-		fmt.Sprintf("unix://%s", machineInfo.PodmanSocket),
-		machineInfo.SSHIdentityPath,
-		true)
+	machine, err := utils.GetMachineContext()
 	if err != nil {
 		println(utils.PodmanMachineErrorMessage)
-		logrus.Errorf("failed to connect to the podman socket. Is podman machine running?\n%s", err)
+		logrus.Errorf("failed to connect to podman machine. Is podman machine running?\n%s", err)
 		return err
 	}
 
 	// create the disk image
 	idOrName := args[0]
-	bootcDisk := bootc.NewBootcDisk(idOrName, ctx, user)
+	bootcDisk := bootc.NewBootcDisk(idOrName, machine.Ctx, user)
 	err = bootcDisk.Install(vmConfig.Quiet, diskImageConfigInstance)
 
 	if err != nil {
@@ -143,7 +113,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		RemoveVm:      vmConfig.RemoveVm,
 		Background:    vmConfig.Background,
 		SSHPort:       sshPort,
-		SSHIdentity:   machineInfo.SSHIdentityPath,
+		SSHIdentity:   machine.SSHIdentityPath,
 		VMUser:        vmConfig.User,
 	})
 
