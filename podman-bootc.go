@@ -24,7 +24,7 @@ func cleanup() {
 	}
 
 	//podman machine connection
-	machineInfo, err := utils.GetMachineInfo(user)
+	machineInfo, err := utils.GetMachineInfo()
 	if err != nil {
 		logrus.Errorf("unable to get podman machine info: %s", err)
 		os.Exit(1)

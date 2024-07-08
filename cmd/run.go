@@ -67,7 +67,7 @@ func doRun(flags *cobra.Command, args []string) error {
 	}
 
 	//podman machine connection
-	machineInfo, err := utils.GetMachineInfo(user)
+	machineInfo, err := utils.GetMachineInfo()
 	if err != nil {
 		return err
 	}
