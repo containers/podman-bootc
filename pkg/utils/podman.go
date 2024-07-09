@@ -1,12 +1,17 @@
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/containers/podman/v5/pkg/bindings/images"
+	"github.com/containers/podman/v5/pkg/domain/entities/types"
+	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/containers/podman/v5/pkg/machine"
 	"github.com/containers/podman/v5/pkg/machine/define"
 	"github.com/containers/podman/v5/pkg/machine/env"
@@ -14,14 +19,70 @@ import (
 	"github.com/containers/podman/v5/pkg/machine/vmconfigs"
 )
 
-type MachineInfo struct {
-	PodmanSocket    string
+type MachineContext struct {
+	Ctx             context.Context
 	SSHIdentityPath string
-	Rootful         bool
 }
 
-func GetMachineInfo() (*MachineInfo, error) {
-	minfo, err := getMachineInfo()
+type machineInfo struct {
+	podmanSocket    string
+	sshIdentityPath string
+	rootful         bool
+}
+
+// PullAndInspect inpects the image, pulling in if the image if required
+func PullAndInspect(ctx context.Context, imageNameOrId string) (*types.ImageInspectReport, error) {
+	pullPolicy := "missing"
+	_, err := images.Pull(ctx, imageNameOrId, &images.PullOptions{Policy: &pullPolicy})
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull image: %w", err)
+	}
+
+	imageInfo, err := images.GetImage(ctx, imageNameOrId, &images.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect image: %w", err)
+	}
+
+	return imageInfo, nil
+}
+
+func GetMachineContext() (*MachineContext, error) {
+	//podman machine connection
+	machineInfo, err := getMachineInfo()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get podman machine info: %w", err)
+	}
+
+	if machineInfo == nil {
+		return nil, errors.New("rootful podman machine is required, please run 'podman machine init --rootful'")
+	}
+
+	if !machineInfo.rootful {
+		return nil, errors.New("rootful podman machine is required, please run 'podman machine set --rootful'")
+	}
+
+	if _, err := os.Stat(machineInfo.podmanSocket); err != nil {
+		return nil, fmt.Errorf("podman machine socket is missing: %w", err)
+	}
+
+	ctx, err := bindings.NewConnectionWithIdentity(
+		context.Background(),
+		fmt.Sprintf("unix://%s", machineInfo.podmanSocket),
+		machineInfo.sshIdentityPath,
+		true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to the podman socket: %w", err)
+	}
+
+	mc := &MachineContext{
+		Ctx:             ctx,
+		SSHIdentityPath: machineInfo.sshIdentityPath,
+	}
+	return mc, nil
+}
+
+func getMachineInfo() (*machineInfo, error) {
+	minfo, err := getPv5MachineInfo()
 	if err != nil {
 		var errIncompatibleMachineConfig *define.ErrIncompatibleMachineConfig
 		var errVMDoesNotExist *define.ErrVMDoesNotExist
@@ -39,7 +100,7 @@ func GetMachineInfo() (*MachineInfo, error) {
 }
 
 // Get podman v5 machine info
-func getMachineInfo() (*MachineInfo, error) {
+func getPv5MachineInfo() (*machineInfo, error) {
 	prov, err := provider.Get()
 	if err != nil {
 		return nil, fmt.Errorf("getting podman machine provider: %w", err)
@@ -60,16 +121,16 @@ func getMachineInfo() (*MachineInfo, error) {
 		return nil, fmt.Errorf("getting podman machine connection info: %w", err)
 	}
 
-	pmi := MachineInfo{
-		PodmanSocket:    podmanSocket.GetPath(),
-		SSHIdentityPath: pm.SSH.IdentityPath,
-		Rootful:         pm.HostUser.Rootful,
+	pmi := machineInfo{
+		podmanSocket:    podmanSocket.GetPath(),
+		sshIdentityPath: pm.SSH.IdentityPath,
+		rootful:         pm.HostUser.Rootful,
 	}
 	return &pmi, nil
 }
 
 // Just to support podman v4.9, it will be removed in the future
-func getPv4MachineInfo() (*MachineInfo, error) {
+func getPv4MachineInfo() (*machineInfo, error) {
 	//check if a default podman machine exists
 	listCmd := exec.Command("podman", "machine", "list", "--format", "json")
 	var listCmdOutput strings.Builder
@@ -135,9 +196,9 @@ func getPv4MachineInfo() (*MachineInfo, error) {
 		return nil, errors.New("no podman machine found")
 	}
 
-	return &MachineInfo{
-		PodmanSocket:    machineInspect[0].ConnectionInfo.PodmanSocket.Path,
-		SSHIdentityPath: machineInspect[0].SSHConfig.IdentityPath,
-		Rootful:         machineInspect[0].Rootful,
+	return &machineInfo{
+		podmanSocket:    machineInspect[0].ConnectionInfo.PodmanSocket.Path,
+		sshIdentityPath: machineInspect[0].SSHConfig.IdentityPath,
+		rootful:         machineInspect[0].Rootful,
 	}, nil
 }
