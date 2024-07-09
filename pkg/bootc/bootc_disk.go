@@ -18,7 +18,6 @@ import (
 	"github.com/containers/podman-bootc/pkg/utils"
 
 	"github.com/containers/podman/v5/pkg/bindings/containers"
-	"github.com/containers/podman/v5/pkg/bindings/images"
 	"github.com/containers/podman/v5/pkg/domain/entities/types"
 	"github.com/containers/podman/v5/pkg/specgen"
 	"github.com/docker/go-units"
@@ -277,32 +276,17 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 }
 
 // pullImage fetches the container image if not present
-func (p *BootcDisk) pullImage() (err error) {
-	pullPolicy := "missing"
-	ids, err := images.Pull(p.Ctx, p.ImageNameOrId, &images.PullOptions{Policy: &pullPolicy})
+func (p *BootcDisk) pullImage() error {
+	imageData, err := utils.PullAndInspect(p.Ctx, p.ImageNameOrId)
 	if err != nil {
-		return fmt.Errorf("failed to pull image: %w", err)
+		return err
 	}
 
-	if len(ids) == 0 {
-		return fmt.Errorf("no ids returned from image pull")
-	}
+	p.imageData = imageData
+	p.ImageId = imageData.ID
+	p.RepoTag = imageData.RepoTags[0]
 
-	if len(ids) > 1 {
-		return fmt.Errorf("multiple ids returned from image pull")
-	}
-
-	image, err := images.GetImage(p.Ctx, p.ImageNameOrId, &images.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get image: %w", err)
-	}
-	p.imageData = image
-
-	imageId := ids[0]
-	p.ImageId = imageId
-	p.RepoTag = image.RepoTags[0]
-
-	return
+	return nil
 }
 
 // runInstallContainer runs the bootc installer in a container to create a disk image

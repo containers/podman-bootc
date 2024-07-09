@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/containers/podman/v5/pkg/bindings/images"
+	"github.com/containers/podman/v5/pkg/domain/entities/types"
 	"os"
 	"os/exec"
 	"strings"
@@ -26,6 +28,22 @@ type machineInfo struct {
 	podmanSocket    string
 	sshIdentityPath string
 	rootful         bool
+}
+
+// PullAndInspect inpects the image, pulling in if the image if required
+func PullAndInspect(ctx context.Context, imageNameOrId string) (*types.ImageInspectReport, error) {
+	pullPolicy := "missing"
+	_, err := images.Pull(ctx, imageNameOrId, &images.PullOptions{Policy: &pullPolicy})
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull image: %w", err)
+	}
+
+	imageInfo, err := images.GetImage(ctx, imageNameOrId, &images.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect image: %w", err)
+	}
+
+	return imageInfo, nil
 }
 
 func GetMachineContext() (*MachineContext, error) {
