@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -19,11 +20,10 @@ import (
 
 	"github.com/containers/podman/v5/pkg/bindings/containers"
 	"github.com/containers/podman/v5/pkg/domain/entities/types"
-	"github.com/containers/podman/v5/pkg/specgen"
 	"github.com/docker/go-units"
-	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 )
 
 // As a baseline heuristic we double the size of
@@ -290,7 +290,7 @@ func (p *BootcDisk) pullImage() error {
 }
 
 // runInstallContainer runs the bootc installer in a container to create a disk image
-func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) (err error) {
+func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) error {
 	// Create a temporary external shell script with the contents of our losetup wrapper
 	losetupTemp, err := os.CreateTemp(p.Directory, "losetup-wrapper")
 	if err != nil {
@@ -304,55 +304,17 @@ func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) (err
 		return fmt.Errorf("temp losetup wrapper chmod: %w", err)
 	}
 
-	createResponse, err := p.createInstallContainer(config, losetupTemp.Name())
-	if err != nil {
-		return fmt.Errorf("failed to create container: %w", err)
+	c := p.createInstallContainer(config, losetupTemp.Name())
+	if err := c.Run(); err != nil {
+		return fmt.Errorf("failed to invoke install: %w", err)
 	}
-
-	p.bootcInstallContainerId = createResponse.ID //save the id for possible cleanup
-	logrus.Debugf("Created install container, id=%s", createResponse.ID)
-
-	// run the container to create the disk
-	err = containers.Start(p.Ctx, p.bootcInstallContainerId, &containers.StartOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to start container: %w", err)
-	}
-	logrus.Debugf("Started install container")
-
-	// Ensure we've cancelled the container attachment when exiting this function, as
-	// it takes over stdout/stderr handling
-	attachCancelCtx, cancelAttach := context.WithCancel(p.Ctx)
-	defer cancelAttach()
-	var exitCode int32
-	if !quiet {
-		attachOpts := new(containers.AttachOptions).WithStream(true)
-		if err := containers.Attach(attachCancelCtx, p.bootcInstallContainerId, os.Stdin, os.Stdout, os.Stderr, nil, attachOpts); err != nil {
-			return fmt.Errorf("attaching: %w", err)
-		}
-	}
-	exitCode, err = containers.Wait(p.Ctx, p.bootcInstallContainerId, nil)
-	if err != nil {
-		return fmt.Errorf("failed to wait for container: %w", err)
-	}
-
-	if exitCode != 0 {
-		return fmt.Errorf("failed to run bootc install")
-	}
-
-	return
+	return nil
 }
 
-// createInstallContainer creates a container to run the bootc installer
-func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup string) (createResponse types.ContainerCreateResponse, err error) {
-	privileged := true
-	autoRemove := true
-	labelNested := true
-
-	targetEnv := make(map[string]string)
-	if v, ok := os.LookupEnv("BOOTC_INSTALL_LOG"); ok {
-		targetEnv["RUST_LOG"] = v
-	}
-
+// createInstallContainer creates a podman command to run the bootc installer.
+// Note: This code used to use the Go bindings for the podman remote client, but the
+// Attach interface currently leaks goroutines.
+func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup string) *exec.Cmd {
 	bootcInstallArgs := []string{
 		"bootc", "install", "to-disk", "--via-loopback", "--generic-image",
 		"--skip-fetch-check",
@@ -365,60 +327,27 @@ func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup s
 	}
 	bootcInstallArgs = append(bootcInstallArgs, "/output/"+filepath.Base(p.file.Name()))
 
-	// Allocate pty so we can show progress bars, spinners etc.
-	trueDat := true
-	s := &specgen.SpecGenerator{
-		ContainerBasicConfig: specgen.ContainerBasicConfig{
-			Command:     bootcInstallArgs,
-			PidNS:       specgen.Namespace{NSMode: specgen.Host},
-			Remove:      &autoRemove,
-			Annotations: map[string]string{"io.podman.annotations.label": "type:unconfined_t"},
-			Env:         targetEnv,
-			Terminal:    &trueDat,
-		},
-		ContainerStorageConfig: specgen.ContainerStorageConfig{
-			Image: p.ImageNameOrId,
-			Mounts: []specs.Mount{
-				{
-					Source:      "/var/lib/containers",
-					Destination: "/var/lib/containers",
-					Type:        "bind",
-				},
-				{
-					Source:      "/dev",
-					Destination: "/dev",
-					Type:        "bind",
-				},
-				{
-					Source:      p.Directory,
-					Destination: "/output",
-					Type:        "bind",
-				},
-				{
-					Source: tempLosetup,
-					// Note that the default $PATH has /usr/local/sbin first
-					Destination: "/usr/local/sbin/losetup",
-					Type:        "bind",
-					Options:     []string{"ro"},
-				},
-			},
-		},
-		ContainerSecurityConfig: specgen.ContainerSecurityConfig{
-			Privileged:  &privileged,
-			LabelNested: &labelNested,
-			SelinuxOpts: []string{"type:unconfined_t"},
-		},
-		ContainerNetworkConfig: specgen.ContainerNetworkConfig{
-			NetNS: specgen.Namespace{
-				NSMode: specgen.Bridge,
-			},
-		},
+	// Basic config:
+	// - force on --remote because we depend on podman machine.
+	// - add privileged, pid=host, SELinux config and bind mounts per https://containers.github.io/bootc/bootc-install.html
+	podmanArgs := []string{"--remote", "run", "--rm", "-i", "--pid=host", "--privileged", "--security-opt=label=type:unconfined_t", "--volume=/dev:/dev", "--volume=/var/lib/containers:/var/lib/containers"}
+	// Custom bind mounts
+	podmanArgs = append(podmanArgs, fmt.Sprintf("--volume=%s:/output", p.Directory), fmt.Sprintf("--volume=%s:/usr/local/sbin/losetup:ro", tempLosetup))
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		podmanArgs = append(podmanArgs, "-t")
 	}
-
-	createResponse, err = containers.CreateWithSpec(p.Ctx, s, &containers.CreateOptions{})
-	if err != nil {
-		return createResponse, fmt.Errorf("failed to create container: %w", err)
+	// Other conditional arguments
+	if v, ok := os.LookupEnv("BOOTC_INSTALL_LOG"); ok {
+		podmanArgs = append(podmanArgs, fmt.Sprintf("--env=RUST_LOG=%s", v))
 	}
+	// The image name
+	podmanArgs = append(podmanArgs, p.ImageNameOrId)
+	// And the remaining arguments for bootc install
+	podmanArgs = append(podmanArgs, bootcInstallArgs...)
 
-	return
+	c := exec.Command("podman", podmanArgs...)
+	c.Stdin = os.Stdin
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return c
 }
