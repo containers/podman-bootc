@@ -3,8 +3,10 @@ package utils
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
+	"time"
 )
 
 func ReadPidFile(pidFile string) (int, error) {
@@ -34,4 +36,18 @@ func FileExists(path string) (bool, error) {
 		err = nil
 	}
 	return exists, err
+}
+
+// WaitForFileWithBackoffs attempts to discover a file in maxBackoffs attempts
+func WaitForFileWithBackoffs(maxBackoffs int, backoff time.Duration, path string) error {
+	backoffWait := backoff
+	for i := 0; i < maxBackoffs; i++ {
+		e, _ := FileExists(path)
+		if e {
+			return nil
+		}
+		time.Sleep(backoffWait)
+		backoffWait *= 2
+	}
+	return fmt.Errorf("unable to find file at %q", path)
 }
