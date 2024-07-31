@@ -26,6 +26,15 @@ func ReadPidFile(pidFile string) (int, error) {
 	return int(pid), nil
 }
 
+func WritePidFile(pidFile string, pid int) error {
+	if pid < 1 {
+		// We might be running as PID 1 when running docker-in-docker,
+		// but 0 or negative PIDs are not acceptable.
+		return fmt.Errorf("invalid negative PID %d", pid)
+	}
+	return os.WriteFile(pidFile, []byte(strconv.Itoa(pid)), 0o644)
+}
+
 func FileExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	exists := false
