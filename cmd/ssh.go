@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/containers/podman-bootc/pkg/config"
 	"github.com/containers/podman-bootc/pkg/user"
 	"github.com/containers/podman-bootc/pkg/utils"
@@ -25,30 +27,41 @@ func init() {
 }
 
 func doSsh(_ *cobra.Command, args []string) error {
-	user, err := user.NewUser()
+	usr, err := user.NewUser()
 	if err != nil {
 		return err
 	}
 
 	id := args[0]
+	fullImageId, err := usr.Storage().SearchByPrefix(id)
+	if err != nil {
+		return fmt.Errorf("searching for ID %s: %w", id, err)
+	}
+	if fullImageId == nil {
+		return fmt.Errorf("local installation '%s' does not exists", id)
+	}
+
+	guard, unlock, err := usr.Storage().Get(*fullImageId)
+	if err != nil {
+		return fmt.Errorf("unable to lock the VM cache: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			logrus.Warningf("unable to unlock VM %s: %v", id, err)
+		}
+	}()
 
 	vm, err := vm.NewVM(vm.NewVMParameters{
-		ImageID:    id,
-		User:       user,
+		ImageID:    string(*fullImageId),
+		User:       usr,
 		LibvirtUri: config.LibvirtUri,
-		Locking:    utils.Shared,
 	})
 
 	if err != nil {
 		return err
 	}
-
-	// Let's be explicit instead of relying on the defer exec order
 	defer func() {
 		vm.CloseConnection()
-		if err := vm.Unlock(); err != nil {
-			logrus.Warningf("unable to unlock VM %s: %v", id, err)
-		}
 	}()
 
 	err = vm.SetUser(sshUser)
@@ -61,6 +74,6 @@ func doSsh(_ *cobra.Command, args []string) error {
 		cmd = args[1:]
 	}
 
-	ExitCode, err = utils.WithExitCode(vm.RunSSH(cmd))
+	ExitCode, err = utils.WithExitCode(vm.RunSSH(guard, cmd))
 	return err
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/storage"
 	"github.com/containers/podman-bootc/pkg/utils"
 
 	"github.com/sirupsen/logrus"
@@ -30,11 +31,6 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 		return nil, fmt.Errorf("unable to get VM cache path: %w", err)
 	}
 
-	lock, err := lockVM(params, cacheDir)
-	if err != nil {
-		return nil, err
-	}
-
 	vm = &BootcVMMac{
 		socketFile: filepath.Join(params.User.CacheDir(), longId[:12]+"-console.sock"),
 		BootcVMCommon: BootcVMCommon{
@@ -48,7 +44,6 @@ func NewVM(params NewVMParameters) (vm *BootcVMMac, err error) {
 	}
 
 	return vm, nil
-
 }
 
 func (b *BootcVMMac) CloseConnection() {
@@ -83,8 +78,8 @@ func (b *BootcVMMac) PrintConsole() (err error) {
 	}
 }
 
-func (b *BootcVMMac) GetConfig() (cfg *BootcVMConfig, err error) {
-	cfg, err = b.LoadConfigFile()
+func (b *BootcVMMac) GetConfig(guard *storage.ReadOnlyGuard) (cfg *BootcVMConfig, err error) {
+	cfg, err = b.LoadConfigFile(guard)
 	if err != nil {
 		return
 	}
@@ -243,8 +238,4 @@ func getQemuInstallPath() (string, error) {
 	}
 
 	return "", errors.New("QEMU binary not found")
-}
-
-func (v *BootcVMMac) Unlock() error {
-	return v.cacheDirLock.Unlock()
 }

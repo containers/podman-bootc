@@ -4,6 +4,7 @@ package vm_test
 
 import (
 	"context"
+	"github.com/adrg/xdg"
 	"os"
 	osUser "os/user"
 	"path/filepath"
@@ -12,8 +13,9 @@ import (
 
 	"github.com/containers/podman-bootc/cmd"
 	"github.com/containers/podman-bootc/pkg/bootc"
+	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/storage"
 	"github.com/containers/podman-bootc/pkg/user"
-	"github.com/containers/podman-bootc/pkg/utils"
 	"github.com/containers/podman-bootc/pkg/vm"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -35,15 +37,22 @@ func projectRoot() string {
 	return projectRoot
 }
 
-var testUser = user.User{
-	OSUser: &osUser.User{
-		Uid:      "1000",
-		Gid:      "1000",
-		Username: "test",
-		Name:     "test",
-		HomeDir:  filepath.Join(projectRoot(), ".test-user-home"),
-	},
-}
+var (
+	homeDir  = filepath.Join(projectRoot(), ".test-user-home")
+	cacheDir = filepath.Join(homeDir, config.CacheDir, config.ProjectName)
+	runDir   = filepath.Join(xdg.RuntimeDir, config.ProjectName, "run")
+
+	testUser = user.User{
+		OSUser: &osUser.User{
+			Uid:      "1000",
+			Gid:      "1000",
+			Username: "test",
+			Name:     "test",
+			HomeDir:  homeDir,
+		},
+		Stor: storage.NewBucket(cacheDir, runDir),
+	}
+)
 
 const (
 	testImageID    = "a025064b145ed339eeef86046aea3ee221a2a5a16f588aff4f43a42e5ca9f844"
@@ -85,7 +94,6 @@ func createTestVM(imageId string) (bootcVM *vm.BootcVMLinux) {
 		ImageID:    imageId,
 		User:       testUser,
 		LibvirtUri: testLibvirtUri,
-		Locking:    utils.Shared,
 	})
 	Expect(err).To(Not(HaveOccurred()))
 
@@ -156,9 +164,6 @@ var _ = Describe("VM", func() {
 	Context("does not exist", func() {
 		It("should create and start the VM after calling Run", func() {
 			bootcVM := createTestVM(testImageID)
-			defer func() {
-				_ = bootcVM.Unlock()
-			}()
 
 			runTestVM(bootcVM)
 			exists, err := bootcVM.Exists()
@@ -172,9 +177,6 @@ var _ = Describe("VM", func() {
 
 		It("should return false when calling Exists before Run", func() {
 			bootcVM := createTestVM(testImageID)
-			defer func() {
-				_ = bootcVM.Unlock()
-			}()
 
 			exists, err := bootcVM.Exists()
 			Expect(err).To(Not(HaveOccurred()))
@@ -192,9 +194,6 @@ var _ = Describe("VM", func() {
 		It("should remove the VM from the hypervisor after calling Delete", func() {
 			//create vm and start it
 			bootcVM := createTestVM(testImageID)
-			defer func() {
-				_ = bootcVM.Unlock()
-			}()
 
 			runTestVM(bootcVM)
 
@@ -215,9 +214,6 @@ var _ = Describe("VM", func() {
 
 		It("should list the VM", func() {
 			bootcVM := createTestVM(testImageID)
-			defer func() {
-				_ = bootcVM.Unlock()
-			}()
 
 			runTestVM(bootcVM)
 			vmList, err := cmd.CollectVmList(testUser, testLibvirtUri)
@@ -239,25 +235,16 @@ var _ = Describe("VM", func() {
 	Context("multiple running", func() {
 		It("should list all VMs", func() {
 			bootcVM := createTestVM(testImageID)
-			defer func() {
-				_ = bootcVM.Unlock()
-			}()
 
 			runTestVM(bootcVM)
 
 			id2 := "1234564b145ed339eeef86046aea3ee221a2a5a16f588aff4f43a42e5ca9f844"
 			bootcVM2 := createTestVM(id2)
-			defer func() {
-				_ = bootcVM2.Unlock()
-			}()
 
 			runTestVM(bootcVM2)
 
 			id3 := "2345674b145ed339eeef86046aea3ee221a2a5a16f588aff4f43a42e5ca9f844"
 			bootcVM3 := createTestVM(id3)
-			defer func() {
-				_ = bootcVM3.Unlock()
-			}()
 
 			runTestVM(bootcVM3)
 
