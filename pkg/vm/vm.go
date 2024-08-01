@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -255,30 +254,12 @@ func (v *BootcVMCommon) DeleteFromCache() error {
 }
 
 func (b *BootcVMCommon) oemString() (string, error) {
-	tmpFilesCmd, err := b.tmpFileInjectSshKeyEnc()
+	systemdOemString, err := oemStringSystemdCredential(b.vmUsername, b.sshIdentity)
 	if err != nil {
 		return "", err
 	}
-	oemString := fmt.Sprintf("type=11,value=io.systemd.credential.binary:tmpfiles.extra=%s", tmpFilesCmd)
-	return oemString, nil
-}
 
-func (b *BootcVMCommon) tmpFileInjectSshKeyEnc() (string, error) {
-	pubKey, err := os.ReadFile(b.sshIdentity + ".pub")
-	if err != nil {
-		return "", err
-	}
-	pubKeyEnc := base64.StdEncoding.EncodeToString(pubKey)
-
-	userHomeDir := "/root"
-	if b.vmUsername != "root" {
-		userHomeDir = filepath.Join("/home", b.vmUsername)
-	}
-
-	tmpFileCmd := fmt.Sprintf("d %[1]s/.ssh 0750 %[2]s %[2]s -\nf+~ %[1]s/.ssh/authorized_keys 700 %[2]s %[2]s - %[3]s", userHomeDir, b.vmUsername, pubKeyEnc)
-
-	tmpFileCmdEnc := base64.StdEncoding.EncodeToString([]byte(tmpFileCmd))
-	return tmpFileCmdEnc, nil
+	return fmt.Sprintf("type=11,value=%s", systemdOemString), nil
 }
 
 func lockVM(params NewVMParameters, cacheDir string) (utils.CacheLock, error) {
