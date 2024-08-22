@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strconv"
 
 	"github.com/containers/podman-bootc/pkg/config"
@@ -57,6 +58,15 @@ func (u *User) DefaultIdentity() string {
 }
 
 func (u *User) RunDir() string {
+	if runtime.GOOS == "darwin" {
+		tmpDir, ok := os.LookupEnv("TMPDIR")
+		if !ok {
+			tmpDir = "/tmp"
+		}
+
+		return filepath.Join(tmpDir, config.ProjectName, "run")
+	}
+
 	return filepath.Join(xdg.RuntimeDir, config.ProjectName, "run")
 }
 
