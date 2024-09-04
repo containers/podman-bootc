@@ -284,7 +284,9 @@ func (p *BootcDisk) pullImage() error {
 
 	p.imageData = imageData
 	p.ImageId = imageData.ID
-	p.RepoTag = imageData.RepoTags[0]
+	if len(imageData.RepoTags) > 0 {
+		p.RepoTag = imageData.RepoTags[0]
+	}
 
 	return nil
 }
