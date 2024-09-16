@@ -101,7 +101,7 @@ func runTestVM(bootcVM vm.BootcVM) {
 		SSHPort:       22,
 		Cmd:           []string{},
 		RemoveVm:      false,
-		Background:    false,
+		Interactive:   true,
 		SSHIdentity:   testUserSSHKey,
 	})
 	Expect(err).To(Not(HaveOccurred()))

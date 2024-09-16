@@ -18,7 +18,7 @@ type osVmConfig struct {
 	User            string
 	CloudInitDir    string
 	KsFile          string
-	Background      bool
+	Interactive     bool
 	NoCredentials   bool
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
@@ -48,7 +48,7 @@ func init() {
 
 	runCmd.Flags().StringVar(&diskImageConfigInstance.Filesystem, "filesystem", "", "Override the root filesystem (e.g. xfs, btrfs, ext4)")
 	runCmd.Flags().BoolVar(&vmConfig.NoCredentials, "no-creds", false, "Do not inject default SSH key via credentials; also implies --background")
-	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
+	runCmd.Flags().BoolVarP(&vmConfig.Interactive, "interactive,", "i", false, "Start an SSH session")
 	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Remove the VM and it's disk when the SSH session exits. Cannot be used with --background")
 	runCmd.Flags().BoolVar(&vmConfig.Quiet, "quiet", false, "Suppress output from bootc disk creation and VM boot console")
 	runCmd.Flags().StringVar(&diskImageConfigInstance.RootSizeMax, "root-size-max", "", "Maximum size of root filesystem in bytes; optionally accepts M, G, T suffixes")
@@ -111,7 +111,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		NoCredentials: vmConfig.NoCredentials,
 		CloudInitData: flags.Flags().Changed("cloudinit"),
 		RemoveVm:      vmConfig.RemoveVm,
-		Background:    vmConfig.Background,
+		Interactive:   vmConfig.Interactive,
 		SSHPort:       sshPort,
 		SSHIdentity:   machine.SSHIdentityPath,
 		VMUser:        vmConfig.User,
@@ -126,7 +126,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !vmConfig.Background {
+	if vmConfig.Interactive {
 		if !vmConfig.Quiet {
 			go func() {
 				err := bootcVM.PrintConsole()
