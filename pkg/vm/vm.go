@@ -54,7 +54,6 @@ type NewVMParameters struct {
 type RunVMParameters struct {
 	VMUser        string //user to use when connecting to the VM
 	CloudInitDir  string
-	NoCredentials bool
 	CloudInitData bool
 	SSHIdentity   string
 	SSHPort       int

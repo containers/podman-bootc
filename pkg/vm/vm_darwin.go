@@ -84,14 +84,6 @@ func (b *BootcVMMac) Run(params RunVMParameters) (err error) {
 	b.vmUsername = params.VMUser
 	b.sshIdentity = params.SSHIdentity
 
-	if params.NoCredentials {
-		b.sshIdentity = ""
-		if !b.background {
-			fmt.Print("No credentials provided for SSH, using --background by default")
-			b.background = true
-		}
-	}
-
 	execPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("getting executable path: %w", err)

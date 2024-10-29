@@ -123,14 +123,6 @@ func (v *BootcVMLinux) Run(params RunVMParameters) (err error) {
 	v.vmUsername = params.VMUser
 	v.sshIdentity = params.SSHIdentity
 
-	if params.NoCredentials {
-		v.sshIdentity = ""
-		if !v.background {
-			fmt.Print("No credentials provided for SSH, using --background by default")
-			v.background = true
-		}
-	}
-
 	if v.domain != nil {
 		isRunning, err := v.IsRunning()
 		if err != nil {

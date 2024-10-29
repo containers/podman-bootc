@@ -96,7 +96,6 @@ func runTestVM(bootcVM vm.BootcVM) {
 	err := bootcVM.Run(vm.RunVMParameters{
 		VMUser:        "root",
 		CloudInitDir:  "",
-		NoCredentials: false,
 		CloudInitData: false,
 		SSHPort:       22,
 		Cmd:           []string{},

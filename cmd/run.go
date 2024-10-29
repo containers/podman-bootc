@@ -19,7 +19,6 @@ type osVmConfig struct {
 	CloudInitDir    string
 	KsFile          string
 	Background      bool
-	NoCredentials   bool
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
 	Quiet           bool
@@ -47,7 +46,6 @@ func init() {
 	runCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit <cloud-init data directory>")
 
 	runCmd.Flags().StringVar(&diskImageConfigInstance.Filesystem, "filesystem", "", "Override the root filesystem (e.g. xfs, btrfs, ext4)")
-	runCmd.Flags().BoolVar(&vmConfig.NoCredentials, "no-creds", false, "Do not inject default SSH key via credentials; also implies --background")
 	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
 	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Remove the VM and it's disk when the SSH session exits. Cannot be used with --background")
 	runCmd.Flags().BoolVar(&vmConfig.Quiet, "quiet", false, "Suppress output from bootc disk creation and VM boot console")
@@ -108,7 +106,6 @@ func doRun(flags *cobra.Command, args []string) error {
 	err = bootcVM.Run(vm.RunVMParameters{
 		Cmd:           cmd,
 		CloudInitDir:  vmConfig.CloudInitDir,
-		NoCredentials: vmConfig.NoCredentials,
 		CloudInitData: flags.Flags().Changed("cloudinit"),
 		RemoveVm:      vmConfig.RemoveVm,
 		Background:    vmConfig.Background,
