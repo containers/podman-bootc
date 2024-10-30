@@ -6,6 +6,7 @@ import (
 
 	"github.com/containers/podman-bootc/pkg/bootc"
 	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/credentials"
 	"github.com/containers/podman-bootc/pkg/user"
 	"github.com/containers/podman-bootc/pkg/utils"
 	"github.com/containers/podman-bootc/pkg/vm"
@@ -102,6 +103,11 @@ func doRun(flags *cobra.Command, args []string) error {
 		}
 	}()
 
+	sSHIdentityPath, err := credentials.Generatekeys(bootcVM.CacheDir())
+	if err != nil {
+		return fmt.Errorf("unable to generate ssh key: %w", err)
+	}
+
 	cmd := args[1:]
 	err = bootcVM.Run(vm.RunVMParameters{
 		Cmd:           cmd,
@@ -110,7 +116,7 @@ func doRun(flags *cobra.Command, args []string) error {
 		RemoveVm:      vmConfig.RemoveVm,
 		Background:    vmConfig.Background,
 		SSHPort:       sshPort,
-		SSHIdentity:   machine.SSHIdentityPath,
+		SSHIdentity:   sSHIdentityPath,
 		VMUser:        vmConfig.User,
 	})
 
