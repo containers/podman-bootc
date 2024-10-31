@@ -7,6 +7,7 @@ require (
 	github.com/containers/common v0.58.1
 	github.com/containers/gvisor-tap-vsock v0.7.3
 	github.com/containers/podman/v5 v5.0.1
+	github.com/distribution/reference v0.5.0
 	github.com/docker/go-units v0.5.0
 	github.com/gofrs/flock v0.8.1
 	github.com/onsi/ginkgo/v2 v2.17.1
@@ -56,7 +57,6 @@ require (
 	github.com/digitalocean/go-libvirt v0.0.0-20220804181439-8648fbde413e // indirect
 	github.com/digitalocean/go-qemu v0.0.0-20230711162256-2e3d0186973e // indirect
 	github.com/disiqueira/gotree/v3 v3.0.2 // indirect
-	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker v25.0.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.1 // indirect
