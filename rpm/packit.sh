@@ -19,7 +19,6 @@ git-archive-all -C "$(git rev-parse --show-toplevel)" --prefix="$PACKAGE-$RPM_VE
 
 # Generate vendor dir
 RPM_VENDOR_FILE=$PACKAGE-$VERSION-vendor.tar.gz
-go mod vendor
 tar -czf "rpm/$RPM_VENDOR_FILE" vendor/
 
 # RPM Spec modifications
