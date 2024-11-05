@@ -6,6 +6,7 @@ import (
 
 	"github.com/containers/podman-bootc/pkg/bootc"
 	"github.com/containers/podman-bootc/pkg/config"
+	"github.com/containers/podman-bootc/pkg/credentials"
 	"github.com/containers/podman-bootc/pkg/user"
 	"github.com/containers/podman-bootc/pkg/utils"
 	"github.com/containers/podman-bootc/pkg/vm"
@@ -19,7 +20,6 @@ type osVmConfig struct {
 	CloudInitDir    string
 	KsFile          string
 	Background      bool
-	NoCredentials   bool
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
 	Quiet           bool
@@ -47,7 +47,6 @@ func init() {
 	runCmd.Flags().StringVar(&vmConfig.CloudInitDir, "cloudinit", "", "--cloudinit <cloud-init data directory>")
 
 	runCmd.Flags().StringVar(&diskImageConfigInstance.Filesystem, "filesystem", "", "Override the root filesystem (e.g. xfs, btrfs, ext4)")
-	runCmd.Flags().BoolVar(&vmConfig.NoCredentials, "no-creds", false, "Do not inject default SSH key via credentials; also implies --background")
 	runCmd.Flags().BoolVarP(&vmConfig.Background, "background", "B", false, "Do not spawn SSH, run in background")
 	runCmd.Flags().BoolVar(&vmConfig.RemoveVm, "rm", false, "Remove the VM and it's disk when the SSH session exits. Cannot be used with --background")
 	runCmd.Flags().BoolVar(&vmConfig.Quiet, "quiet", false, "Suppress output from bootc disk creation and VM boot console")
@@ -104,16 +103,20 @@ func doRun(flags *cobra.Command, args []string) error {
 		}
 	}()
 
+	sSHIdentityPath, err := credentials.Generatekeys(bootcVM.CacheDir())
+	if err != nil {
+		return fmt.Errorf("unable to generate ssh key: %w", err)
+	}
+
 	cmd := args[1:]
 	err = bootcVM.Run(vm.RunVMParameters{
 		Cmd:           cmd,
 		CloudInitDir:  vmConfig.CloudInitDir,
-		NoCredentials: vmConfig.NoCredentials,
 		CloudInitData: flags.Flags().Changed("cloudinit"),
 		RemoveVm:      vmConfig.RemoveVm,
 		Background:    vmConfig.Background,
 		SSHPort:       sshPort,
-		SSHIdentity:   machine.SSHIdentityPath,
+		SSHIdentity:   sSHIdentityPath,
 		VMUser:        vmConfig.User,
 	})
 

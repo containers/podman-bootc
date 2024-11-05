@@ -10,13 +10,14 @@ import (
 	"github.com/containers/podman-bootc/pkg/config"
 )
 
-// Generatekeys creates an ed25519 set of keys
+// Generatekeys creates an RSA set of keys
 func Generatekeys(outputDir string) (string, error) {
 	sshIdentity := filepath.Join(outputDir, config.SshKeyFile)
 	_ = os.Remove(sshIdentity)
 	_ = os.Remove(sshIdentity + ".pub")
 
-	args := []string{"-N", "", "-t", "ed25519", "-f", sshIdentity}
+	// we use RSA here so it works on FIPS mode
+	args := []string{"-N", "", "-t", "rsa", "-f", sshIdentity}
 	cmd := exec.Command("ssh-keygen", args...)
 	stdErr, err := cmd.StderrPipe()
 	if err != nil {

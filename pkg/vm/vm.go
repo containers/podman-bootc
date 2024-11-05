@@ -54,7 +54,6 @@ type NewVMParameters struct {
 type RunVMParameters struct {
 	VMUser        string //user to use when connecting to the VM
 	CloudInitDir  string
-	NoCredentials bool
 	CloudInitData bool
 	SSHIdentity   string
 	SSHPort       int
@@ -71,6 +70,7 @@ type BootcVM interface {
 	WaitForSSHToBeReady() error
 	RunSSH([]string) error
 	DeleteFromCache() error
+	CacheDir() string
 	Exists() (bool, error)
 	GetConfig() (*BootcVMConfig, error)
 	CloseConnection()
@@ -251,6 +251,10 @@ func (v *BootcVMCommon) RunSSH(inputArgs []string) error {
 // Delete removes the VM disk image and the VM configuration from the podman-bootc cache
 func (v *BootcVMCommon) DeleteFromCache() error {
 	return os.RemoveAll(v.cacheDir)
+}
+
+func (v *BootcVMCommon) CacheDir() string {
+	return v.cacheDir
 }
 
 func (b *BootcVMCommon) oemString() (string, error) {
