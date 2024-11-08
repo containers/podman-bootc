@@ -21,6 +21,7 @@ BuildRequires: golang
 BuildRequires: make
 BuildRequires: libvirt-devel
 
+Requires: podman-machine
 Requires: xorriso
 Requires: podman
 Requires: qemu

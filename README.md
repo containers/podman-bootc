@@ -9,27 +9,11 @@ in alignment with the <https://github.com/containers/bootc> project.
 - Be a backend for <https://github.com/containers/podman-desktop-extension-bootc>
 - Work on both MacOS and Linux
 
-## Setup
-
-Requirements:
-
-- [bootc extension requirements](https://github.com/containers/podman-desktop-extension-bootc?tab=readme-ov-file#requirements)
-  - (Even on Linux, you *must* set up `podman machine` with a rootful connection; see below)
-  - `podman machine init --rootful --now`
-- qemu-system-x86_64 / qemu-system-aarch64
-- xorriso/osirrox
-- golang
-- libvirt-devel
-
-
-To compile it, just run in the project directory:
-
-```shell
-make
-```
-
 ### MacOS
-On MacOS you can use homebrew to install podman-bootc
+
+First be sure you have the Podman Desktop [bootc extension requirements](https://github.com/containers/podman-desktop-extension-bootc?tab=readme-ov-file#requirements).
+
+On MacOS you can use homebrew to install podman-bootc:
 
 ```
 brew tap germag/podman-bootc
@@ -50,6 +34,11 @@ brew install qemu
 or by other mean and make it available in the path.
 
 ### Fedora
+
+You first must have `podman-machine` installed.
+It is required to have a *rootful* podman machine setup
+via e.g. `podman machine init --rootful --now`.
+
 For Fedora 40 and Rawhide we provide a COPR repository.
 First, enable the COPR repository:
 
@@ -62,6 +51,21 @@ then you can install `podman-bootc` as usual:
 
 ```
 sudo dnf -y install podman-bootc
+```
+
+## Building from source:
+
+Our generic dependencies:
+
+- qemu-system-x86_64 / qemu-system-aarch64
+- xorriso/osirrox
+- golang
+- libvirt-devel
+
+To compile it, just run in the project directory:
+
+```shell
+make
 ```
 
 
