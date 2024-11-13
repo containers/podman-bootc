@@ -36,6 +36,5 @@ jobs:
     list_on_homepage: true
     preserve_project: true
     targets:
-      - fedora-latest
-      - fedora-rawhide
+      - fedora-all
 
