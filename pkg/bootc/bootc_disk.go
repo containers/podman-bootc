@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -33,19 +31,6 @@ import (
 const containerSizeToDiskSizeMultiplier = 2
 const diskSizeMinimum = 10 * 1024 * 1024 * 1024 // 10GB
 const imageMetaXattr = "user.bootc.meta"
-
-// tempLosetupWrapperContents is a workaround for https://github.com/containers/bootc/pull/487/commits/89d34c7dbcb8a1fa161f812c6ba0a8b49ccbe00f
-const tempLosetupWrapperContents = `#!/bin/bash
-set -euo pipefail
-args=(/usr/sbin/losetup --direct-io=off)
-for arg in "$@"; do
-	case $arg in
-		--direct-io=*) echo "ignoring: $arg" 1>&2;;
-		*) args+=("$arg") ;;
-	esac
-done
-exec "${args[@]}"
-`
 
 // DiskImageConfig defines configuration for the
 type DiskImageConfig struct {
@@ -293,20 +278,7 @@ func (p *BootcDisk) pullImage() error {
 
 // runInstallContainer runs the bootc installer in a container to create a disk image
 func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) error {
-	// Create a temporary external shell script with the contents of our losetup wrapper
-	losetupTemp, err := os.CreateTemp(p.Directory, "losetup-wrapper")
-	if err != nil {
-		return fmt.Errorf("temp losetup wrapper: %w", err)
-	}
-	defer os.Remove(losetupTemp.Name())
-	if _, err := io.Copy(losetupTemp, strings.NewReader(tempLosetupWrapperContents)); err != nil {
-		return fmt.Errorf("temp losetup wrapper copy: %w", err)
-	}
-	if err := losetupTemp.Chmod(0o755); err != nil {
-		return fmt.Errorf("temp losetup wrapper chmod: %w", err)
-	}
-
-	c := p.createInstallContainer(config, losetupTemp.Name())
+	c := p.createInstallContainer(config)
 	if err := c.Run(); err != nil {
 		return fmt.Errorf("failed to invoke install: %w", err)
 	}
@@ -316,7 +288,7 @@ func (p *BootcDisk) runInstallContainer(quiet bool, config DiskImageConfig) erro
 // createInstallContainer creates a podman command to run the bootc installer.
 // Note: This code used to use the Go bindings for the podman remote client, but the
 // Attach interface currently leaks goroutines.
-func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup string) *exec.Cmd {
+func (p *BootcDisk) createInstallContainer(config DiskImageConfig) *exec.Cmd {
 	bootcInstallArgs := []string{
 		"bootc", "install", "to-disk", "--via-loopback", "--generic-image",
 		"--skip-fetch-check",
@@ -334,7 +306,7 @@ func (p *BootcDisk) createInstallContainer(config DiskImageConfig, tempLosetup s
 	// - add privileged, pid=host, SELinux config and bind mounts per https://containers.github.io/bootc/bootc-install.html
 	podmanArgs := []string{"--remote", "run", "--rm", "-i", "--pid=host", "--privileged", "--security-opt=label=type:unconfined_t", "--volume=/dev:/dev", "--volume=/var/lib/containers:/var/lib/containers"}
 	// Custom bind mounts
-	podmanArgs = append(podmanArgs, fmt.Sprintf("--volume=%s:/output", p.Directory), fmt.Sprintf("--volume=%s:/usr/local/sbin/losetup:ro", tempLosetup))
+	podmanArgs = append(podmanArgs, fmt.Sprintf("--volume=%s:/output", p.Directory))
 	if term.IsTerminal(int(os.Stdin.Fd())) {
 		podmanArgs = append(podmanArgs, "-t")
 	}
