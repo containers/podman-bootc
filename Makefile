@@ -2,7 +2,7 @@ binary_name = podman-bootc
 output_dir = bin
 build_tags = exclude_graphdriver_btrfs,btrfs_noversion,exclude_graphdriver_devicemapper,containers_image_openpgp,remote
 
-all: out_dir
+all: out_dir docs
 	go build -tags $(build_tags) $(GOOPTS) -o $(output_dir)/$(binary_name)
 
 out_dir:
@@ -18,5 +18,10 @@ integration_tests:
 e2e_test: all
 	ginkgo -tags $(build_tags) ./test/...
 
+.PHONY: docs
+docs:
+	make -C docs
+
 clean:
 	rm -f $(output_dir)/*
+	make -C docs clean
