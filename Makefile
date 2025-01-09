@@ -25,3 +25,7 @@ docs:
 clean:
 	rm -f $(output_dir)/*
 	make -C docs clean
+
+.PHONY: validate
+validate:
+	hack/man-page-checker
