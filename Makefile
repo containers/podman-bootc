@@ -8,7 +8,7 @@ all: out_dir docs
 out_dir:
 	mkdir -p $(output_dir)
 
-lint:
+lint: validate_docs
 	golangci-lint --build-tags $(build_tags) run
 
 integration_tests:
@@ -26,6 +26,6 @@ clean:
 	rm -f $(output_dir)/*
 	make -C docs clean
 
-.PHONY: validate
-validate:
+.PHONY: validate_docs
+validate_docs:
 	hack/man-page-checker

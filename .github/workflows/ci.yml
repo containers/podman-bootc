@@ -19,6 +19,7 @@ jobs:
           # Because all the git clones are much less reliable
           export GOPROXY=https://proxy.golang.org
           go install github.com/onsi/ginkgo/v2/ginkgo@latest
+          go install github.com/cpuguy83/go-md2man@latest
           make GOOPTS=-buildvcs=false
           export PATH=$PATH:$HOME/go/bin
           make integration_tests
