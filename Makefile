@@ -29,3 +29,4 @@ clean:
 .PHONY: validate_docs
 validate_docs:
 	hack/man-page-checker
+	hack/xref-helpmsgs-manpages
