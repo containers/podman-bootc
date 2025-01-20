@@ -21,6 +21,12 @@ Removes all non-running bootc VMs
 #### **--force**, **-f**
 Terminate a running VM
 
+#### **--help**, **-h**
+Help for rm
+
+#### **--log-level**=*level*
+Log messages at and above specified level: __debug__, __info__, __warn__, __error__, __fatal__ or __panic__ (default: _warn_)
+
 ## SEE ALSO
 
 **[podman-bootc(1)](podman-bootc.1.md)**, **[podman-bootc-list(1)](podman-bootc-list.1.md)**

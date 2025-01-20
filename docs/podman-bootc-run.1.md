@@ -26,6 +26,12 @@ Allocate a disk image of this size in bytes; optionally accepts M, G, T suffixes
 #### **--filesystem**=**string**
 Override the root filesystem, e.g. xfs, btrfs, ext4.
 
+#### **--help**, **-h**
+Help for run
+
+#### **--log-level**=*level*
+Log messages at and above specified level: __debug__, __info__, __warn__, __error__, __fatal__ or __panic__ (default: _warn_)
+
 #### **--quiet**
 Suppress output from bootc disk creation and VM boot console
 

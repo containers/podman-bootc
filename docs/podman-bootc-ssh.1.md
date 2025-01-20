@@ -13,6 +13,12 @@ Use **[podman-bootc list](podman-bootc-list.1.md)** to find the IDs of installed
 
 ## OPTIONS
 
+#### **--help**, **-h**
+Help for ssh
+
+#### **--log-level**=*level*
+Log messages at and above specified level: __debug__, __info__, __warn__, __error__, __fatal__ or __panic__ (default: _warn_)
+
 #### **--user**, **-u**=**root** | *user name*
 User name to use for connection, default: root
 

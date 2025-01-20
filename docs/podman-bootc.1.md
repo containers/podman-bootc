@@ -1,4 +1,4 @@
-% podman-bootc(1)
+% podman-bootc 1
 
 ## NAME
 podman-bootc - Run bootable containers as a virtual machine
@@ -19,11 +19,9 @@ See `podman-machine(1)` for details.
 ## GLOBAL OPTIONS
 
 #### **--help**, **-h**
-
 Print usage statement
 
 #### **--log-level**=*level*
-
 Log messages at and above specified level: __debug__, __info__, __warn__, __error__, __fatal__ or __panic__ (default: _warn_)
 
 ## COMMANDS

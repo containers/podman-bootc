@@ -15,7 +15,7 @@ Supported shells are *bash*, *fish*, *powershell*, and *zsh*.
 #### **--help**, **-h**
 Show details on how to use the script generated for the particular shell.
 
-#### **--no-descriptions** 
+#### **--no-descriptions**
 Disable completion descriptions.
 
 ## SEE ALSO
