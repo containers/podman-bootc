@@ -40,16 +40,20 @@ Requires: libvirt
 %build
 export BUILDTAGS="exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp remote"
 %gobuild -o %{gobuilddir}/bin/%%{name} %{goipath}
+%{__make} docs
 
 %install
 %gopkginstall
 install -m 0755 -vd                     %{buildroot}%{_bindir}
 install -m 0755 -vp %{gobuilddir}/bin/* %{buildroot}%{_bindir}/
+install -m 0755 -vd                     %{buildroot}%{_mandir}/man1
+install -m 0755 -vp docs/*.1            %{buildroot}%{_mandir}/man1/
 
 %files
 %license LICENSE
 %doc README.md
 %{_bindir}/*
+%{_mandir}/man1/*.1*
 
 %gopkgfiles
 
