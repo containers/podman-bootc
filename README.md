@@ -9,67 +9,13 @@ in alignment with the <https://github.com/containers/bootc> project.
 - Be a backend for <https://github.com/containers/podman-desktop-extension-bootc>
 - Work on both MacOS and Linux
 
-### MacOS
-
-First be sure you have the Podman Desktop [bootc extension requirements](https://github.com/containers/podman-desktop-extension-bootc?tab=readme-ov-file#requirements).
-
-On MacOS you can use homebrew to install podman-bootc:
-
-```
-brew tap germag/podman-bootc
-brew install podman-bootc
-```
-
-alternatively, you can download the latest development cutting-edge source
-
-```
-brew install --head podman-bootc
-```
-
-It will install xorriso and libvirt, but it doesn't install qemu.
-You need to install qemu manually, using brew:
-```
-brew install qemu
-```
-or by other mean and make it available in the path.
-
-### Fedora
-
-You first must have `podman-machine` installed.
-It is required to have a *rootful* podman machine setup
-via e.g. `podman machine init --rootful --now`.
-
-For Fedora 40 and Rawhide we provide a COPR repository.
-First, enable the COPR repository:
-
-```
-sudo dnf -y install 'dnf-command(copr)'
-sudo dnf -y copr enable gmaglione/podman-bootc
-```
-
-then you can install `podman-bootc` as usual:
-
-```
-sudo dnf -y install podman-bootc
-```
-
-## Building from source:
-
-Our generic dependencies:
-
-- qemu-system-x86_64 / qemu-system-aarch64
-- xorriso/osirrox
-- golang
-- libvirt-devel
-
-To compile it, just run in the project directory:
-
-```shell
-make
-```
-
-
 ## Running
+
+First and foremost, `podman-bootc` requires a *rootful* Podman Machine to be
+running, which is the default on MacOS and Windows.  On Linux, make sure to
+create a Podman Machine via `podman machine init --rootful --now` which implies
+that you need to run podman with `--remote` command to make built images
+available to `podman-bootc`.
 
 The core command right now is:
 
@@ -110,3 +56,60 @@ mounted over virtiofs/9p from the podman-machine VM.
 In the future, support for installing via [Anaconda](https://github.com/rhinstaller/anaconda/)
 and [bootc-image-builder](https://github.com/osbuild/bootc-image-builder)
 will be added.
+
+## Installation
+
+### MacOS
+
+First be sure you have the Podman Desktop [bootc extension requirements](https://github.com/containers/podman-desktop-extension-bootc?tab=readme-ov-file#requirements).
+
+On MacOS you can use homebrew to install podman-bootc:
+
+```
+brew tap germag/podman-bootc
+brew install podman-bootc
+```
+
+alternatively, you can download the latest development cutting-edge source
+
+```
+brew install --head podman-bootc
+```
+
+It will install xorriso and libvirt, but it doesn't install qemu.
+You need to install qemu manually, using brew:
+```
+brew install qemu
+```
+or by other mean and make it available in the path.
+
+### Fedora
+
+For Fedora 40+ and Rawhide we provide a COPR repository.
+First, enable the COPR repository:
+
+```
+sudo dnf -y install 'dnf-command(copr)'
+sudo dnf -y copr enable gmaglione/podman-bootc
+```
+
+then you can install `podman-bootc` as usual:
+
+```
+sudo dnf -y install podman-bootc
+```
+
+## Building from source:
+
+Our generic dependencies:
+
+- qemu-system-x86_64 / qemu-system-aarch64
+- xorriso/osirrox
+- golang
+- libvirt-devel
+
+To compile it, just run in the project directory:
+
+```shell
+make
+```
