@@ -11,6 +11,12 @@ in alignment with the <https://github.com/containers/bootc> project.
 
 ## Running
 
+First and foremost, `podman-bootc` requires a *rootful* Podman Machine to be
+running, which is the default on MacOS and Windows.  On Linux, make sure to
+create a Podman Machine via `podman machine init --rootful --now` which implies
+that you need to run podman with `--remote` command to make built images
+available to `podman-bootc`.
+
 The core command right now is:
 
 ```shell
@@ -79,11 +85,7 @@ or by other mean and make it available in the path.
 
 ### Fedora
 
-You first must have `podman-machine` installed.
-It is required to have a *rootful* podman machine setup
-via e.g. `podman machine init --rootful --now`.
-
-For Fedora 40 and Rawhide we provide a COPR repository.
+For Fedora 40+ and Rawhide we provide a COPR repository.
 First, enable the COPR repository:
 
 ```
