@@ -304,7 +304,8 @@ func (p *BootcDisk) createInstallContainer(config DiskImageConfig) *exec.Cmd {
 	// Basic config:
 	// - force on --remote because we depend on podman machine.
 	// - add privileged, pid=host, SELinux config and bind mounts per https://containers.github.io/bootc/bootc-install.html
-	podmanArgs := []string{"--remote", "run", "--rm", "-i", "--pid=host", "--privileged", "--security-opt=label=type:unconfined_t", "--volume=/dev:/dev", "--volume=/var/lib/containers:/var/lib/containers"}
+	// - we need force running as root (i.e., --user=root:root) to overwrite any possible USER directive in the Containerfile
+	podmanArgs := []string{"--remote", "run", "--rm", "-i", "--pid=host", "--user=root:root", "--privileged", "--security-opt=label=type:unconfined_t", "--volume=/dev:/dev", "--volume=/var/lib/containers:/var/lib/containers"}
 	// Custom bind mounts
 	podmanArgs = append(podmanArgs, fmt.Sprintf("--volume=%s:/output", p.Directory))
 	if term.IsTerminal(int(os.Stdin.Fd())) {
