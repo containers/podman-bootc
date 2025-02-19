@@ -56,6 +56,7 @@ type BootcDisk struct {
 	Directory               string
 	file                    *os.File
 	bootcInstallContainerId string
+	SkipTLSVerify           bool
 }
 
 // create singleton for easy cleanup
@@ -106,7 +107,7 @@ func (p *BootcDisk) GetCreatedAt() time.Time {
 func (p *BootcDisk) Install(quiet bool, config DiskImageConfig) (err error) {
 	p.CreatedAt = time.Now()
 
-	err = p.pullImage()
+	err = p.pullImage(p.SkipTLSVerify)
 	if err != nil {
 		return
 	}
@@ -261,8 +262,8 @@ func (p *BootcDisk) bootcInstallImageToDisk(quiet bool, diskConfig DiskImageConf
 }
 
 // pullImage fetches the container image if not present
-func (p *BootcDisk) pullImage() error {
-	imageData, err := utils.PullAndInspect(p.Ctx, p.ImageNameOrId)
+func (p *BootcDisk) pullImage(skipTLSVerify bool) error {
+	imageData, err := utils.PullAndInspect(p.Ctx, p.ImageNameOrId, skipTLSVerify)
 	if err != nil {
 		return err
 	}
