@@ -764,6 +764,8 @@ honnef.co/go/tools v0.0.0-20190102054323-c2f93a96b099/go.mod h1:rf3lG4BRIbNafJWh
 honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 libvirt.org/go/libvirt v1.10002.0 h1:ZFQsv1G8HE8SYhLBqaOuxze6+f00x96khLwn54aWJnI=
 libvirt.org/go/libvirt v1.10002.0/go.mod h1:1WiFE8EjZfq+FCVog+rvr1yatKbKZ9FaFMZgEqxEJqQ=
+libvirt.org/go/libvirtxml v1.9008.0 h1:xo2U9SqUsufTFtbyjiqs6oDdF329cvtRdqttWN7eojk=
+libvirt.org/go/libvirtxml v1.9008.0/go.mod h1:7Oq2BLDstLr/XtoQD8Fr3mfDNrzlI3utYKySXF2xkng=
 nullprogram.com/x/optparse v1.0.0/go.mod h1:KdyPE+Igbe0jQUrVfMqDMeJQIJZEuyV7pjYmp6pbG50=
 sigs.k8s.io/yaml v1.4.0 h1:Mk1wCc2gy/F0THH0TAp1QYyJNzRm2KCLy3o5ASXVI5E=
 sigs.k8s.io/yaml v1.4.0/go.mod h1:Ejl7/uTz7PSA4eKMyQCUTnhZYNmLIl+5c2lQPGR2BPY=

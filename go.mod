@@ -191,6 +191,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	libvirt.org/go/libvirtxml v1.9008.0
 	sigs.k8s.io/yaml v1.4.0 // indirect
 	tags.cncf.io/container-device-interface v0.6.2 // indirect
 )
