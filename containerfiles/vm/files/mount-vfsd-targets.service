@@ -1,0 +1,12 @@
+[Unit]
+Description=Mount all virtiofs targets
+After=local-fs.target
+ConditionPathExists=/sys/fs/virtiofs
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mount-vfsd-targets.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

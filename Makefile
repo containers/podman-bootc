@@ -2,6 +2,11 @@ binary_name = podman-bootc
 output_dir = bin
 build_tags = exclude_graphdriver_btrfs,btrfs_noversion,exclude_graphdriver_devicemapper,containers_image_openpgp,remote
 
+registry = quay.io/containers
+vm_image_name = bootc-vm
+vm_image_tag = latest
+vm_image = $(registry)/$(vm_image_name):$(vm_image_tag)
+
 all: out_dir docs
 	go build -tags $(build_tags) $(GOOPTS) -o $(output_dir)/$(binary_name)
 
@@ -17,6 +22,11 @@ integration_tests:
 # !! These tests will modify your system's resources. See note in e2e_test.go. !!
 e2e_test: all
 	ginkgo -tags $(build_tags) ./test/...
+
+image:
+	podman build -t $(vm_image) --device /dev/kvm \
+	-f containerfiles/vm/Containerfile \
+	containerfiles/vm
 
 .PHONY: docs
 docs:
