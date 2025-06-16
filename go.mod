@@ -11,6 +11,7 @@ require (
 	github.com/docker/docker v25.0.3+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/gofrs/flock v0.8.1
+	github.com/mdlayher/vsock v1.2.1
 	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.32.0
 	github.com/opencontainers/runtime-spec v1.2.0
@@ -21,6 +22,8 @@ require (
 	golang.org/x/term v0.25.0
 	libvirt.org/go/libvirt v1.10002.0
 )
+
+require github.com/mdlayher/socket v0.4.1 // indirect
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
