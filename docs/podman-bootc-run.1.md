@@ -36,7 +36,7 @@ Log messages at and above specified level: __debug__, __info__, __warn__, __erro
 Suppress output from bootc disk creation and VM boot console
 
 #### **--rm**
-Remove the VM and it's disk image when the SSH connection exits. Cannot be used with *--background*
+Remove the VM and its disk image when the SSH connection exits. Cannot be used with *--background*
 
 #### **--root-size-max**=**string**
 Maximum size of root filesystem in bytes; optionally accepts M, G, T suffixes
