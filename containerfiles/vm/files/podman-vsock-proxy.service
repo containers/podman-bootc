@@ -1,0 +1,15 @@
+[Unit]
+Description=Proxy vsock (PORT: 1234) to Unix podman socket
+After=network.target
+Requires=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/vsock-proxy --log-level debug --cid 3 --port 1234 \
+	--socket /var/run/podman/podman.sock --listen-mode vsockToUnix
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+

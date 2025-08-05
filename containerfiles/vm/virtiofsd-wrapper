@@ -1,0 +1,6 @@
+#!/bin/bash
+exec /usr/libexec/virtiofsd \
+  --sandbox=none \
+  --cache=auto --modcaps=-mknod \
+  --log-level debug \
+  "$@"

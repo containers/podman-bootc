@@ -1,0 +1,28 @@
+FROM quay.io/fedora/fedora:42
+
+RUN dnf install -y \
+	libvirt-client \
+	libvirt-daemon \
+	libvirt-daemon-driver-qemu \
+	libvirt-daemon-driver-storage-core \
+	qemu-kvm \
+	socat \
+	virt-install \
+	virtiofsd \
+	&& dnf clean all
+
+RUN mkdir -p /home/qemu && chown -R qemu:qemu /home/qemu
+RUN mkdir -p /etc/libvirt /vm_files
+
+COPY containerfiles/vm/entrypoint.sh /entrypoint.sh
+COPY ./bin/vsock-proxy /usr/local/bin/vsock-proxy
+COPY containerfiles/vm/files /vm_files
+COPY containerfiles/vm/qemu.conf /etc/libvirt/qemu.conf
+COPY containerfiles/vm/virtqemud.conf /etc/libvirt/virtqemud.conf
+COPY containerfiles/vm/virtiofsd-wrapper /usr/local/bin/virtiofsd-wrapper
+
+EXPOSE 5959
+
+RUN dnf install -y socat
+
+ENTRYPOINT ["/entrypoint.sh"]
