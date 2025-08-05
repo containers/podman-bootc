@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/containers/podman/v5/pkg/bindings/images"
-	"github.com/containers/podman/v5/pkg/domain/entities/types"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/containers/podman/v5/pkg/bindings"
+	"github.com/containers/podman/v5/pkg/bindings/images"
+	"github.com/containers/podman/v5/pkg/domain/entities/types"
 	"github.com/containers/podman/v5/pkg/machine"
 	"github.com/containers/podman/v5/pkg/machine/define"
 	"github.com/containers/podman/v5/pkg/machine/env"
@@ -31,9 +31,9 @@ type machineInfo struct {
 }
 
 // PullAndInspect inpects the image, pulling in if the image if required
-func PullAndInspect(ctx context.Context, imageNameOrId string) (*types.ImageInspectReport, error) {
+func PullAndInspect(ctx context.Context, imageNameOrId string, skipTLSVerify bool) (*types.ImageInspectReport, error) {
 	pullPolicy := "missing"
-	_, err := images.Pull(ctx, imageNameOrId, &images.PullOptions{Policy: &pullPolicy})
+	_, err := images.Pull(ctx, imageNameOrId, &images.PullOptions{Policy: &pullPolicy, SkipTLSVerify: &skipTLSVerify})
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull image: %w", err)
 	}

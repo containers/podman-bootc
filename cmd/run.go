@@ -23,6 +23,7 @@ type osVmConfig struct {
 	RemoveVm        bool // Kill the running VM when it exits
 	RemoveDiskImage bool // After exit of the VM, remove the disk image
 	Quiet           bool
+	TLSVerify       bool
 }
 
 var (
@@ -52,6 +53,7 @@ func init() {
 	runCmd.Flags().BoolVar(&vmConfig.Quiet, "quiet", false, "Suppress output from bootc disk creation and VM boot console")
 	runCmd.Flags().StringVar(&diskImageConfigInstance.RootSizeMax, "root-size-max", "", "Maximum size of root filesystem in bytes; optionally accepts M, G, T suffixes")
 	runCmd.Flags().StringVar(&diskImageConfigInstance.DiskSize, "disk-size", "", "Allocate a disk image of this size in bytes; optionally accepts M, G, T suffixes")
+	runCmd.Flags().BoolVar(&vmConfig.TLSVerify, "tls-verify", true, "Require HTTPS and verify certificates when accessing the registry")
 }
 
 func doRun(flags *cobra.Command, args []string) error {
@@ -71,6 +73,10 @@ func doRun(flags *cobra.Command, args []string) error {
 	// create the disk image
 	idOrName := args[0]
 	bootcDisk := bootc.NewBootcDisk(idOrName, machine.Ctx, user)
+
+	// skip tls verification if tls-verfiy flag is set to false
+	bootcDisk.SkipTLSVerify = !vmConfig.TLSVerify
+
 	err = bootcDisk.Install(vmConfig.Quiet, diskImageConfigInstance)
 
 	if err != nil {
